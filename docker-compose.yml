@@ -1,0 +1,35 @@
+# Reconstruit l'environnement PostgreSQL de développement du cabinet.
+# L'application FastAPI, elle, est lancée en local (voir CLAUDE.md) :
+#   uvicorn app.main:app --reload
+#
+# Démarrage :    docker compose up -d
+# Accès psql :   docker exec -it cabinet-db psql -U postgres -d cabinet
+# Migrations :   alembic upgrade head            (depuis la machine hôte)
+# Arrêt :        docker compose down             (les données sont conservées)
+# Reset total :  docker compose down -v          (SUPPRIME le volume de données)
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: cabinet-db
+    restart: unless-stopped
+    environment:
+      # Identifiants de développement — doivent correspondre au DATABASE_URL du .env
+      # (postgresql+psycopg://postgres:postgres@localhost:5433/cabinet).
+      # À changer pour un déploiement réel en agence.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cabinet
+    ports:
+      # hôte 5433 -> conteneur 5432 : l'app locale se connecte sur localhost:5433
+      - "5433:5432"
+    volumes:
+      - cabinet-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cabinet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cabinet-db-data:
