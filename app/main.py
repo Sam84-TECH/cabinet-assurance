@@ -6,7 +6,7 @@ Lancement en dev : uvicorn app.main:app --reload
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import referentiel, client, sous, risque, quittance, encaissement, banq, rev, recouv, dashboard, reporting, auth as auth_router
+from .routers import referentiel, client, sous, risque, police_garantie, quittance, encaissement, banq, rev, recouv, dashboard, reporting, auth as auth_router
 from .scheduler import demarrer_scheduler, arreter_scheduler
 
 app = FastAPI(
@@ -38,6 +38,7 @@ app.include_router(referentiel.router)
 app.include_router(client.router)
 app.include_router(sous.router)
 app.include_router(risque.router)
+app.include_router(police_garantie.router)
 app.include_router(quittance.router)
 app.include_router(encaissement.router)
 app.include_router(banq.router)
