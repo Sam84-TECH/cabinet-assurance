@@ -1,5 +1,5 @@
 """
-Module Référentiel — compagnie, produit, garantie, barème de commission.
+Module Référentiel — compagnie, produit, garantie, barème de commission, pièces justificatives.
 C'est le catalogue produit générique/paramétrable (principe clé du CDCF :
 ajouter un produit ou une garantie ne demande aucun code, juste des données).
 """
@@ -14,11 +14,22 @@ from ..auth import get_current_user
 router = APIRouter(prefix="/referentiel", tags=["Référentiel"])
 
 
-# ----- Compagnie (lecture seule pour l'instant : une seule ligne, Sanlam) -----
+# ----- Compagnie -----
+# Le cabinet est agent général d'une seule compagnie (Sanlam), créée par le seed :
+# pas de création ni de suppression, seulement lecture et mise à jour des coordonnées.
+# La table et les compagnie_id restent en place — le modèle demeure multi-compagnie.
 
 @router.get("/compagnies", response_model=list[schemas.CompagnieRead])
 def list_compagnies(db: Session = Depends(get_db)):
     return crud.list_all(db, models.Compagnie)
+
+
+@router.patch("/compagnies/{compagnie_id}", response_model=schemas.CompagnieRead)
+def update_compagnie(compagnie_id: int, payload: schemas.CompagnieCreate, db: Session = Depends(get_db),
+                     user: models.Utilisateur = Depends(get_current_user)):
+    """Met à jour les coordonnées de la compagnie. Pas de création ni de suppression :
+    le cabinet n'a qu'une compagnie (Sanlam), créée par le seed."""
+    return crud.update(db, models.Compagnie, compagnie_id, payload.model_dump(exclude_unset=True))
 
 
 # ----- Produit -----
@@ -88,3 +99,36 @@ def update_bareme(bareme_id: int, payload: schemas.BaremeCommissionCreate, db: S
 def delete_bareme(bareme_id: int, db: Session = Depends(get_db),
                   user: models.Utilisateur = Depends(get_current_user)):
     crud.delete(db, models.BaremeCommission, bareme_id)
+
+
+# ----- Pièce justificative requise -----
+
+@router.post("/pieces-justificatives", response_model=schemas.PieceJustificativeRequiseRead)
+def create_piece(payload: schemas.PieceJustificativeRequiseCreate, db: Session = Depends(get_db),
+                 user: models.Utilisateur = Depends(get_current_user)):
+    return crud.create(db, models.PieceJustificativeRequise, payload.model_dump())
+
+
+@router.get("/pieces-justificatives", response_model=list[schemas.PieceJustificativeRequiseRead])
+def list_pieces(produit_id: int | None = None, db: Session = Depends(get_db)):
+    pieces = crud.list_all(db, models.PieceJustificativeRequise)
+    if produit_id is not None:
+        pieces = [p for p in pieces if p.produit_id == produit_id]
+    return pieces
+
+
+@router.get("/pieces-justificatives/{piece_id}", response_model=schemas.PieceJustificativeRequiseRead)
+def get_piece(piece_id: int, db: Session = Depends(get_db)):
+    return crud.get_or_404(db, models.PieceJustificativeRequise, piece_id)
+
+
+@router.patch("/pieces-justificatives/{piece_id}", response_model=schemas.PieceJustificativeRequiseRead)
+def update_piece(piece_id: int, payload: schemas.PieceJustificativeRequiseCreate, db: Session = Depends(get_db),
+                 user: models.Utilisateur = Depends(get_current_user)):
+    return crud.update(db, models.PieceJustificativeRequise, piece_id, payload.model_dump(exclude_unset=True))
+
+
+@router.delete("/pieces-justificatives/{piece_id}", status_code=204)
+def delete_piece(piece_id: int, db: Session = Depends(get_db),
+                 user: models.Utilisateur = Depends(get_current_user)):
+    crud.delete(db, models.PieceJustificativeRequise, piece_id)

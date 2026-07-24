@@ -27,6 +27,15 @@ plus tard sans refonte.
 PostgreSQL tourne dans **Docker** (conteneur `cabinet-db`), l'application FastAPI est
 lancée localement.
 
+**Environnement Python :** le projet utilise un venv situé dans `venv/` à la racine, sur
+Windows. Activer le venv avant toute commande Python, ou utiliser directement
+`venv\Scripts\python.exe`.
+
+```powershell
+# activer le venv (PowerShell)
+.\venv\Scripts\Activate.ps1
+```
+
 ```bash
 # lancer le serveur
 uvicorn app.main:app --reload
@@ -66,6 +75,10 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 8. La commission de reversement suit le barème : priorité au barème compagnie+produit, sinon barème général de la compagnie (produit_id NULL).
 9. Règle terrain de l'agence : le bordereau de reversement peut être généré **même si le chèque client n'est pas encore encaissé**.
 10. Toute création / modification / suppression significative doit être historisée dans `journal_audit` (auteur, date, ancienne et nouvelle valeur).
+11. **Paramétrage figé → seed ; paramétrage mouvant → CRUD.** Compagnie, banques et
+    produit Auto sont créés par le seed (pas d'endpoint de création). Garanties, barèmes de
+    commission et pièces justificatives ont un CRUD, parce que l'agence doit pouvoir les
+    modifier sans développeur.
 
 ## État actuel — travail restant, par ordre de priorité
 
@@ -73,7 +86,7 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 - [ ] Router `risque.py` — CRUD des véhicules rattachés à une police (le schéma `RisqueCreate` existe déjà, l'endpoint non)
 - [ ] Router `police_garantie.py` — rattacher garanties + prime à une police/risque
 - [ ] CRUD `BaremeCommission` — sans lui, `rev.py` renvoie systématiquement 400
-- [ ] CRUD `Compagnie` (création) et `PieceJustificativeRequise`
+- [ ] `PieceJustificativeRequise` : CRUD léger. Pour la **Compagnie**, pas de CRUD : le cabinet est agent général d'une seule compagnie (Sanlam), elle est créée par le seed. Un simple PATCH suffit pour modifier ses coordonnées. **La table `compagnie` et tous les `compagnie_id` restent en place** — le barème de commission et le bordereau de reversement s'appuient dessus, et le modèle doit rester multi-compagnie.
 - [ ] Script de seed : Sanlam Maroc, produit Auto, ses garanties, un barème, les 2 banques de l'agence
 - [ ] `docker-compose.yml` pour reconstruire l'environnement (postgres, port 5433, volume persistant)
 
@@ -103,6 +116,7 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 - [ ] Exports Excel des rapports
 - [ ] Scénario de recette bout en bout (voir ci-dessous)
 - [ ] Tests pytest, Dockerfile + docker-compose, README
+- [ ] `.gitignore` (au minimum `venv/`, `.env`, `__pycache__/`)
 
 ## Scénario de recette de référence
 Le backend est considéré terminé pour cette phase quand ce scénario passe au vert
