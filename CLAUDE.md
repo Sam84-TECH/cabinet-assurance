@@ -79,6 +79,15 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
     produit Auto sont créés par le seed (pas d'endpoint de création). Garanties, barèmes de
     commission et pièces justificatives ont un CRUD, parce que l'agence doit pouvoir les
     modifier sans développeur.
+12. **Une police ne se supprime jamais** : elle se **résilie par un avenant** (type
+    `resiliation`), qui trace l'auteur et la date. L'absence d'endpoint `DELETE` sur
+    `/sous/polices` est **délibérée**, ce n'est pas un oubli. La même règle vaut pour
+    les autres entités comptables — **avenant, quittance, encaissement, bordereaux de
+    versement et de reversement** : aucune n'expose de `DELETE`. Une écriture comptable
+    se corrige ou s'annule par un changement de statut ou un document rectificatif tracé
+    (cf. règle 7), jamais par suppression physique. Les entités *non* comptables peuvent,
+    elles, garder un `DELETE` : paramétrage mouvant (garantie, barème, pièce justificative,
+    cf. règle 11) et éléments de composition d'une police (risque, police_garantie).
 
 ## État actuel — travail restant, par ordre de priorité
 
