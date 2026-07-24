@@ -22,12 +22,8 @@ def create_police_garantie(payload: schemas.PoliceGarantieCreate, db: Session = 
 @router.get("", response_model=list[schemas.PoliceGarantieRead])
 def list_police_garanties(police_id: int | None = None, risque_id: int | None = None,
                           skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    lignes = crud.list_all(db, models.PoliceGarantie, skip, limit)
-    if police_id is not None:
-        lignes = [pg for pg in lignes if pg.police_id == police_id]
-    if risque_id is not None:
-        lignes = [pg for pg in lignes if pg.risque_id == risque_id]
-    return lignes
+    return crud.list_all(db, models.PoliceGarantie, skip, limit,
+                         police_id=police_id, risque_id=risque_id)
 
 
 @router.get("/{police_garantie_id}", response_model=schemas.PoliceGarantieRead)

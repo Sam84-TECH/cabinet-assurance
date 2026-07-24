@@ -23,11 +23,8 @@ def create_encaissement(payload: schemas.EncaissementCreate, db: Session = Depen
 
 
 @router.get("", response_model=list[schemas.EncaissementRead])
-def list_encaissements(client_id: int | None = None, db: Session = Depends(get_db)):
-    encaissements = crud.list_all(db, models.Encaissement)
-    if client_id is not None:
-        encaissements = [e for e in encaissements if e.client_id == client_id]
-    return encaissements
+def list_encaissements(client_id: int | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.Encaissement, skip, limit, client_id=client_id)
 
 
 @router.get("/{encaissement_id}", response_model=schemas.EncaissementRead)

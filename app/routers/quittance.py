@@ -23,13 +23,8 @@ def create_quittance(payload: schemas.QuittanceCreate, db: Session = Depends(get
 
 @router.get("", response_model=list[schemas.QuittanceRead])
 def list_quittances(police_id: int | None = None, statut: models.StatutQuittance | None = None,
-                     db: Session = Depends(get_db)):
-    quittances = crud.list_all(db, models.Quittance)
-    if police_id is not None:
-        quittances = [q for q in quittances if q.police_id == police_id]
-    if statut is not None:
-        quittances = [q for q in quittances if q.statut == statut]
-    return quittances
+                     skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.Quittance, skip, limit, police_id=police_id, statut=statut)
 
 
 @router.get("/{quittance_id}", response_model=schemas.QuittanceRead)

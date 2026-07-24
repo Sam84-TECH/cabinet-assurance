@@ -23,8 +23,15 @@ def get_or_404(db: Session, model, id: int):
     return obj
 
 
-def list_all(db: Session, model, skip: int = 0, limit: int = 100):
-    return db.execute(select(model).offset(skip).limit(limit)).scalars().all()
+def list_all(db: Session, model, skip: int = 0, limit: int = 100, **filtres):
+    """Liste paginée. Les `filtres` (champ=valeur) sont appliqués en SQL (clause WHERE) ;
+    ceux dont la valeur vaut None sont ignorés (aucun critère ajouté). Le filtrage se fait
+    ainsi en base, avant skip/limit — jamais en Python après coup."""
+    stmt = select(model)
+    for champ, valeur in filtres.items():
+        if valeur is not None:
+            stmt = stmt.where(getattr(model, champ) == valeur)
+    return db.execute(stmt.offset(skip).limit(limit)).scalars().all()
 
 
 def update(db: Session, model, id: int, data: dict):

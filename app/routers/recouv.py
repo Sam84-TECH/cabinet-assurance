@@ -24,11 +24,8 @@ def ouvrir_dossier(payload: schemas.DossierRecouvrementCreate, db: Session = Dep
 
 
 @router.get("/dossiers", response_model=list[schemas.DossierRecouvrementRead])
-def list_dossiers(statut: models.StatutDossierRecouv | None = None, db: Session = Depends(get_db)):
-    dossiers = crud.list_all(db, models.DossierRecouvrement)
-    if statut is not None:
-        dossiers = [d for d in dossiers if d.statut == statut]
-    return dossiers
+def list_dossiers(statut: models.StatutDossierRecouv | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.DossierRecouvrement, skip, limit, statut=statut)
 
 
 @router.get("/dossiers/{dossier_id}", response_model=schemas.DossierRecouvrementRead)
@@ -64,5 +61,5 @@ def ajouter_relance(dossier_id: int, payload: schemas.RelanceCreate, db: Session
 
 
 @router.get("/dossiers/{dossier_id}/relances", response_model=list[schemas.RelanceRead])
-def list_relances(dossier_id: int, db: Session = Depends(get_db)):
-    return db.query(models.Relance).filter_by(dossier_recouvrement_id=dossier_id).all()
+def list_relances(dossier_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.Relance, skip, limit, dossier_recouvrement_id=dossier_id)

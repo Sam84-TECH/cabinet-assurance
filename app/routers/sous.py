@@ -29,10 +29,7 @@ def create_police(payload: schemas.PoliceCreate, db: Session = Depends(get_db),
 @router.get("/polices", response_model=list[schemas.PoliceRead])
 def list_polices(client_id: int | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     synchroniser_statuts_polices(db)
-    polices = crud.list_all(db, models.Police, skip, limit)
-    if client_id is not None:
-        polices = [p for p in polices if p.client_id == client_id]
-    return polices
+    return crud.list_all(db, models.Police, skip, limit, client_id=client_id)
 
 
 @router.get("/polices/{police_id}", response_model=schemas.PoliceRead)
@@ -50,11 +47,8 @@ def create_avenant(payload: schemas.AvenantCreate, db: Session = Depends(get_db)
 
 
 @router.get("/avenants", response_model=list[schemas.AvenantRead])
-def list_avenants(police_id: int | None = None, db: Session = Depends(get_db)):
-    avenants = crud.list_all(db, models.Avenant)
-    if police_id is not None:
-        avenants = [a for a in avenants if a.police_id == police_id]
-    return avenants
+def list_avenants(police_id: int | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.Avenant, skip, limit, police_id=police_id)
 
 
 @router.patch("/avenants/{avenant_id}/valider", response_model=schemas.AvenantRead)

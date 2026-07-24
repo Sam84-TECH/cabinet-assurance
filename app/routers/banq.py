@@ -25,8 +25,8 @@ def create_compte(payload: schemas.BanqueAgenceCreate, db: Session = Depends(get
 
 
 @router.get("/comptes", response_model=list[schemas.BanqueAgenceRead])
-def list_comptes(db: Session = Depends(get_db)):
-    return crud.list_all(db, models.BanqueAgence)
+def list_comptes(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.BanqueAgence, skip, limit)
 
 
 # ----- Bordereau de versement -----
@@ -40,11 +40,8 @@ def create_bordereau(payload: schemas.BordereauVersementCreate, db: Session = De
 
 
 @router.get("/bordereaux", response_model=list[schemas.BordereauVersementRead])
-def list_bordereaux(statut: models.StatutBordereauVersement | None = None, db: Session = Depends(get_db)):
-    bordereaux = crud.list_all(db, models.BordereauVersement)
-    if statut is not None:
-        bordereaux = [b for b in bordereaux if b.statut == statut]
-    return bordereaux
+def list_bordereaux(statut: models.StatutBordereauVersement | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.BordereauVersement, skip, limit, statut=statut)
 
 
 @router.get("/bordereaux/{bordereau_id}", response_model=schemas.BordereauVersementRead)

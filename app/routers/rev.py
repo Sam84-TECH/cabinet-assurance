@@ -52,11 +52,8 @@ def create_bordereau(payload: schemas.BordereauReversementCreate, db: Session = 
 
 
 @router.get("/bordereaux", response_model=list[schemas.BordereauReversementRead])
-def list_bordereaux(compagnie_id: int | None = None, db: Session = Depends(get_db)):
-    bordereaux = crud.list_all(db, models.BordereauReversement)
-    if compagnie_id is not None:
-        bordereaux = [b for b in bordereaux if b.compagnie_id == compagnie_id]
-    return bordereaux
+def list_bordereaux(compagnie_id: int | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.BordereauReversement, skip, limit, compagnie_id=compagnie_id)
 
 
 @router.get("/bordereaux/{bordereau_id}", response_model=schemas.BordereauReversementRead)

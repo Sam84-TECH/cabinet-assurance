@@ -20,8 +20,8 @@ router = APIRouter(prefix="/referentiel", tags=["Référentiel"])
 # La table et les compagnie_id restent en place — le modèle demeure multi-compagnie.
 
 @router.get("/compagnies", response_model=list[schemas.CompagnieRead])
-def list_compagnies(db: Session = Depends(get_db)):
-    return crud.list_all(db, models.Compagnie)
+def list_compagnies(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.Compagnie, skip, limit)
 
 
 @router.patch("/compagnies/{compagnie_id}", response_model=schemas.CompagnieRead)
@@ -41,8 +41,8 @@ def create_produit(payload: schemas.ProduitCreate, db: Session = Depends(get_db)
 
 
 @router.get("/produits", response_model=list[schemas.ProduitRead])
-def list_produits(db: Session = Depends(get_db)):
-    return crud.list_all(db, models.Produit)
+def list_produits(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.Produit, skip, limit)
 
 
 @router.get("/produits/{produit_id}", response_model=schemas.ProduitRead)
@@ -59,11 +59,8 @@ def create_garantie(payload: schemas.GarantieCreate, db: Session = Depends(get_d
 
 
 @router.get("/garanties", response_model=list[schemas.GarantieRead])
-def list_garanties(produit_id: int | None = None, db: Session = Depends(get_db)):
-    garanties = crud.list_all(db, models.Garantie)
-    if produit_id is not None:
-        garanties = [g for g in garanties if g.produit_id == produit_id]
-    return garanties
+def list_garanties(produit_id: int | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.Garantie, skip, limit, produit_id=produit_id)
 
 
 # ----- Barème de commission (RF-REV-03) -----
@@ -77,11 +74,8 @@ def create_bareme(payload: schemas.BaremeCommissionCreate, db: Session = Depends
 
 
 @router.get("/baremes", response_model=list[schemas.BaremeCommissionRead])
-def list_baremes(compagnie_id: int | None = None, db: Session = Depends(get_db)):
-    baremes = crud.list_all(db, models.BaremeCommission)
-    if compagnie_id is not None:
-        baremes = [b for b in baremes if b.compagnie_id == compagnie_id]
-    return baremes
+def list_baremes(compagnie_id: int | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.BaremeCommission, skip, limit, compagnie_id=compagnie_id)
 
 
 @router.get("/baremes/{bareme_id}", response_model=schemas.BaremeCommissionRead)
@@ -110,11 +104,8 @@ def create_piece(payload: schemas.PieceJustificativeRequiseCreate, db: Session =
 
 
 @router.get("/pieces-justificatives", response_model=list[schemas.PieceJustificativeRequiseRead])
-def list_pieces(produit_id: int | None = None, db: Session = Depends(get_db)):
-    pieces = crud.list_all(db, models.PieceJustificativeRequise)
-    if produit_id is not None:
-        pieces = [p for p in pieces if p.produit_id == produit_id]
-    return pieces
+def list_pieces(produit_id: int | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.list_all(db, models.PieceJustificativeRequise, skip, limit, produit_id=produit_id)
 
 
 @router.get("/pieces-justificatives/{piece_id}", response_model=schemas.PieceJustificativeRequiseRead)

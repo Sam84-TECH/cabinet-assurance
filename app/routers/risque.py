@@ -22,10 +22,7 @@ def create_risque(payload: schemas.RisqueCreate, db: Session = Depends(get_db),
 
 @router.get("", response_model=list[schemas.RisqueRead])
 def list_risques(police_id: int | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    risques = crud.list_all(db, models.Risque, skip, limit)
-    if police_id is not None:
-        risques = [r for r in risques if r.police_id == police_id]
-    return risques
+    return crud.list_all(db, models.Risque, skip, limit, police_id=police_id)
 
 
 @router.get("/{risque_id}", response_model=schemas.RisqueRead)
