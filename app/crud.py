@@ -64,9 +64,12 @@ def list_all(db: Session, model, skip: int = 0, limit: int = 100, **filtres):
 def update(db: Session, model, id: int, data: dict):
     obj = get_or_404(db, model, id)
     _valider_cles_etrangeres(db, model, data)
+    # `data` vient d'un model_dump(exclude_unset=True) côté endpoint : il ne contient que
+    # les champs réellement fournis dans le PATCH. On applique donc TOUTES ses valeurs, y
+    # compris None, pour pouvoir remettre un champ facultatif à NULL (le vider). C'est
+    # `exclude_unset` (côté endpoint) qui distingue « champ absent » de « champ mis à null ».
     for key, value in data.items():
-        if value is not None:
-            setattr(obj, key, value)
+        setattr(obj, key, value)
     db.commit()
     db.refresh(obj)
     return obj
