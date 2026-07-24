@@ -4,7 +4,7 @@ Le détail du véhicule (immatriculation, marque, usage…) est stocké dans
 `attributs` (JSONB) pour rester générique et accueillir d'autres branches plus tard.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
@@ -39,4 +39,15 @@ def update_risque(risque_id: int, payload: schemas.RisqueCreate, db: Session = D
 @router.delete("/{risque_id}", status_code=204)
 def delete_risque(risque_id: int, db: Session = Depends(get_db),
                   user: models.Utilisateur = Depends(get_current_user)):
+    """Suppression autorisée tant qu'aucun avenant n'est validé sur la police (règle 13).
+    Une fois la police engagée, retirer un véhicule passe par un avenant, pas un DELETE."""
+    risque = crud.get_or_404(db, models.Risque, risque_id)
+    if db.query(models.Avenant).filter_by(
+        police_id=risque.police_id, statut=models.StatutAvenant.valide
+    ).first():
+        raise HTTPException(
+            400,
+            "Un avenant est validé sur cette police : le retrait d'un véhicule doit "
+            "passer par un avenant, pas par une suppression.",
+        )
     crud.delete(db, models.Risque, risque_id)

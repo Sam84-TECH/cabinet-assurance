@@ -3,7 +3,7 @@ Module Police-Garantie (SOUS) — rattachement des garanties (et de leur prime)
 à une police, éventuellement ciblées sur un risque précis (véhicule).
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
@@ -41,4 +41,15 @@ def update_police_garantie(police_garantie_id: int, payload: schemas.PoliceGaran
 @router.delete("/{police_garantie_id}", status_code=204)
 def delete_police_garantie(police_garantie_id: int, db: Session = Depends(get_db),
                            user: models.Utilisateur = Depends(get_current_user)):
+    """Suppression autorisée tant qu'aucun avenant n'est validé sur la police (règle 13).
+    Une fois la police engagée, retirer une garantie passe par un avenant, pas un DELETE."""
+    ligne = crud.get_or_404(db, models.PoliceGarantie, police_garantie_id)
+    if db.query(models.Avenant).filter_by(
+        police_id=ligne.police_id, statut=models.StatutAvenant.valide
+    ).first():
+        raise HTTPException(
+            400,
+            "Un avenant est validé sur cette police : le retrait d'une garantie doit "
+            "passer par un avenant, pas par une suppression.",
+        )
     crud.delete(db, models.PoliceGarantie, police_garantie_id)

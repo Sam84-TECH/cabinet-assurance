@@ -88,6 +88,16 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
     (cf. règle 7), jamais par suppression physique. Les entités *non* comptables peuvent,
     elles, garder un `DELETE` : paramétrage mouvant (garantie, barème, pièce justificative,
     cf. règle 11) et éléments de composition d'une police (risque, police_garantie).
+13. La suppression d'un **risque** ou d'une **police_garantie** est refusée dès qu'un
+    avenant est **validé** sur la police concernée : passé ce point, retirer un véhicule
+    ou une garantie passe par un avenant (message d'erreur explicite l'indiquant). Tant
+    qu'aucun avenant n'est validé, la suppression reste possible (composition en cours).
+14. La suppression d'un **client** est refusée s'il est **référencé ailleurs** — police,
+    encaissement, ou lien familial (cas particulier de la règle 15).
+15. **Aucune suppression ne doit provoquer une erreur 500** par violation de contrainte
+    d'intégrité. Toute entité référencée ailleurs est vérifiée **avant** suppression —
+    contrôle générique des clés étrangères entrantes dans `crud.delete` — et un `DELETE`
+    bloqué renvoie un **409** nommant ce qui référence l'entité, jamais un traceback SQL.
 
 ## État actuel — travail restant, par ordre de priorité
 

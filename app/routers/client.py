@@ -37,4 +37,6 @@ def update_client(client_id: int, payload: schemas.ClientCreate, db: Session = D
 @router.delete("/{client_id}", status_code=204)
 def delete_client(client_id: int, db: Session = Depends(get_db),
                    user: models.Utilisateur = Depends(get_current_user)):
+    """Suppression refusée si le client est référencé ailleurs — police, encaissement,
+    lien familial… — via le contrôle générique de `crud.delete` (règles 14 et 15)."""
     crud.delete(db, models.Client, client_id)

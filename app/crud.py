@@ -4,7 +4,8 @@ Fonctions CRUD génériques (Create/Read/Update/Delete).
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select, inspect as sa_inspect
+from sqlalchemy import select, inspect as sa_inspect, or_
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 
 
@@ -75,7 +76,48 @@ def update(db: Session, model, id: int, data: dict):
     return obj
 
 
+def _refuser_si_reference(db: Session, model, id: int):
+    """Avant suppression : refuse (409) si d'autres tables référencent cette ligne via une
+    clé étrangère, en nommant ce qui bloque. Empêche qu'une suppression ne casse en
+    IntegrityError SQL (500) — règle : aucune suppression ne renvoie un 500 par violation
+    d'intégrité, tout ce qui référence l'entité est vérifié AVANT. C'est l'inverse de
+    _valider_cles_etrangeres (qui valide les FK sortantes à la création/màj). Générique :
+    couvre toute table qui référence `model`, y compris ajoutée plus tard (ex. lien_familial)."""
+    table = sa_inspect(model).local_table
+    blocages = []
+    for mapper in model.registry.mappers:
+        autre = mapper.class_
+        colonnes = [c for c in mapper.columns
+                    if any(fk.column.table is table for fk in c.foreign_keys)]
+        if not colonnes:
+            continue
+        # OR sur toutes les colonnes de `autre` pointant vers nous (gère les doubles FK,
+        # ex. lien_familial.souscripteur_id et .membre_id -> client).
+        nombre = db.query(autre).filter(or_(*[colonne == id for colonne in colonnes])).count()
+        if nombre:
+            blocages.append(f"{nombre} {autre.__tablename__}")
+    if blocages:
+        raise HTTPException(
+            status_code=409,
+            detail=(f"Suppression impossible : {model.__name__} {id} est référencé ailleurs "
+                    f"({', '.join(blocages)}). Détachez ou supprimez ces éléments d'abord."),
+        )
+
+
 def delete(db: Session, model, id: int):
     obj = get_or_404(db, model, id)
+    _refuser_si_reference(db, model, id)
     db.delete(obj)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Filet de sécurité pour honorer la règle 15 de façon absolue. Le pré-contrôle
+        # ci-dessus couvre et détaille les cas normaux, mais une course concurrente (une
+        # référence insérée entre le contrôle et le commit) ou une FK présente en base
+        # mais non modélisée pourrait encore lever une IntegrityError : on la convertit
+        # en 409 au lieu de laisser remonter un 500.
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Suppression impossible : {model.__name__} {id} est référencé ailleurs.",
+        )
