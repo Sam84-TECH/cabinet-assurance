@@ -4,7 +4,7 @@ Module Souscription (SOUS) — police et avenant.
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
@@ -54,11 +54,17 @@ def list_avenants(police_id: int | None = None, skip: int = 0, limit: int = 100,
 @router.patch("/avenants/{avenant_id}/valider", response_model=schemas.AvenantRead)
 def valider_avenant(avenant_id: int, db: Session = Depends(get_db),
                      user: models.Utilisateur = Depends(get_current_user)):
-    """Valide un avenant (règle CDCF : un avenant brouillon doit être validé pour prendre effet).
-    L'auteur de la validation est déduit automatiquement du jeton de connexion."""
-    from ..models import StatutAvenant
-    return crud.update(db, models.Avenant, avenant_id, {
-        "statut": StatutAvenant.valide,
-        "valide_par": user.id,
-        "date_validation": datetime.now(),
-    })
+    """Valide un avenant brouillon (règle CDCF : un avenant doit être validé pour prendre
+    effet). Répercute l'effet sur la police via la synchronisation : un avenant de résiliation
+    ou de suspension bascule la police en 'resilie' / 'suspendu' — immédiatement si sa date
+    d'effet est atteinte, sinon à cette date. L'auteur est déduit du jeton de connexion."""
+    avenant = crud.get_or_404(db, models.Avenant, avenant_id)
+    if avenant.statut != models.StatutAvenant.brouillon:
+        raise HTTPException(400, "Seul un avenant en brouillon peut être validé.")
+    avenant.statut = models.StatutAvenant.valide
+    avenant.valide_par = user.id
+    avenant.date_validation = datetime.now()
+    db.commit()
+    synchroniser_statuts_polices(db)  # applique l'effet sur le statut de la police
+    db.refresh(avenant)
+    return avenant
