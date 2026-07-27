@@ -102,23 +102,23 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 ## État actuel — travail restant, par ordre de priorité
 
 ### 1. Débloquer le socle (rien ne fonctionne de bout en bout sans ça)
-- [ ] Router `risque.py` — CRUD des véhicules rattachés à une police (le schéma `RisqueCreate` existe déjà, l'endpoint non)
-- [ ] Router `police_garantie.py` — rattacher garanties + prime à une police/risque
-- [ ] CRUD `BaremeCommission` — sans lui, `rev.py` renvoie systématiquement 400
-- [ ] `PieceJustificativeRequise` : CRUD léger. Pour la **Compagnie**, pas de CRUD : le cabinet est agent général d'une seule compagnie (Sanlam), elle est créée par le seed. Un simple PATCH suffit pour modifier ses coordonnées. **La table `compagnie` et tous les `compagnie_id` restent en place** — le barème de commission et le bordereau de reversement s'appuient dessus, et le modèle doit rester multi-compagnie.
-- [ ] Script de seed : Sanlam Maroc, produit Auto, ses garanties, un barème, les 2 banques de l'agence
-- [ ] `docker-compose.yml` pour reconstruire l'environnement (postgres, port 5433, volume persistant)
+- [x] Router `risque.py` — CRUD des véhicules rattachés à une police (le schéma `RisqueCreate` existe déjà, l'endpoint non)
+- [x] Router `police_garantie.py` — rattacher garanties + prime à une police/risque
+- [x] CRUD `BaremeCommission` — sans lui, `rev.py` renvoie systématiquement 400
+- [x] `PieceJustificativeRequise` : CRUD léger. Pour la **Compagnie**, pas de CRUD : le cabinet est agent général d'une seule compagnie (Sanlam), elle est créée par le seed. Un simple PATCH suffit pour modifier ses coordonnées. **La table `compagnie` et tous les `compagnie_id` restent en place** — le barème de commission et le bordereau de reversement s'appuient dessus, et le modèle doit rester multi-compagnie.
+- [x] Script de seed : Sanlam Maroc, produit Auto, ses garanties, un barème, les 2 banques de l'agence
+- [x] `docker-compose.yml` pour reconstruire l'environnement (postgres, port 5433, volume persistant)
 
 ### 2. Corriger les bugs existants
-- [ ] Le filtrage se fait en Python **après** `limit=100` dans `list_polices`, `list_avenants`, `list_quittances`, `list_encaissements`, `list_bordereaux`, `list_dossiers` → passer en `WHERE` SQL
-- [ ] `numerotation.py` utilise `count() + 1` → collision après suppression et en concurrence. Remplacer par une séquence Postgres
-- [ ] `affecter_a_quittance` : ajouter les garde-fous (ne pas dépasser le montant de l'encaissement ni le TTC de la quittance, refuser une quittance annulée), passer `montant_affecte` dans le body
-- [ ] `crud.update` ignore les valeurs `None` → impossible de vider un champ
-- [ ] `journal_audit` n'est jamais alimenté → brancher un event listener SQLAlchemy
-- [ ] Le statut de la police ne change pas à la validation d'un avenant de résiliation ou suspension
-- [ ] `@app.on_event` déprécié → passer au `lifespan` FastAPI
-- [ ] CORS en `*` → restreindre
-- [ ] **Validation des clés étrangères** : envoyer un `produit_id` ou `client_id` inexistant provoque une erreur 500 avec un traceback SQL brut. Doit renvoyer un 404 ou 422 explicite (« Produit 1 introuvable »). C'est une validation **serveur** — une liste déroulante côté frontend ne remplace pas ce contrôle, puisque `/docs` reste accessible directement.
+- [x] Le filtrage se fait en Python **après** `limit=100` dans `list_polices`, `list_avenants`, `list_quittances`, `list_encaissements`, `list_bordereaux`, `list_dossiers` → passer en `WHERE` SQL
+- [x] `numerotation.py` utilise `count() + 1` → collision après suppression et en concurrence. Remplacer par une séquence Postgres
+- [x] `affecter_a_quittance` : ajouter les garde-fous (ne pas dépasser le montant de l'encaissement ni le TTC de la quittance, refuser une quittance annulée), passer `montant_affecte` dans le body
+- [x] `crud.update` ignore les valeurs `None` → impossible de vider un champ
+- [x] `journal_audit` n'est jamais alimenté → brancher un event listener SQLAlchemy
+- [x] Le statut de la police ne change pas à la validation d'un avenant de résiliation ou suspension
+- [x] `@app.on_event` déprécié → passer au `lifespan` FastAPI
+- [x] CORS en `*` → restreindre
+- [x] **Validation des clés étrangères** : envoyer un `produit_id` ou `client_id` inexistant provoque une erreur 500 avec un traceback SQL brut. Doit renvoyer un 404 ou 422 explicite (« Produit 1 introuvable »). C'est une validation **serveur** — une liste déroulante côté frontend ne remplace pas ce contrôle, puisque `/docs` reste accessible directement.
 
 ### 3. Compléter le workflow
 - [ ] Génération automatique de la quittance à la validation de l'avenant
