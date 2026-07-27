@@ -6,8 +6,12 @@ Lancement en dev : uvicorn app.main:app --reload
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import referentiel, client, sous, risque, police_garantie, quittance, encaissement, banq, rev, recouv, dashboard, reporting, auth as auth_router
+from .routers import referentiel, client, sous, risque, police_garantie, quittance, encaissement, banq, rev, recouv, dashboard, reporting, audit, auth as auth_router
 from .scheduler import demarrer_scheduler, arreter_scheduler
+from .audit import configurer_audit
+
+# Active l'historisation automatique (journal d'audit) sur tous les mappers.
+configurer_audit()
 
 app = FastAPI(
     title="Cabinet Assurance — API",
@@ -46,6 +50,7 @@ app.include_router(rev.router)
 app.include_router(recouv.router)
 app.include_router(dashboard.router)
 app.include_router(reporting.router)
+app.include_router(audit.router)
 
 
 @app.get("/", tags=["Santé"])

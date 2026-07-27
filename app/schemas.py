@@ -470,3 +470,18 @@ class RelanceRead(ORMBase):
     date_relance: date
     contenu: str | None
     resultat: str | None
+
+
+# ============================================================
+# Journal d'audit (consultation seule — jamais créé via l'API)
+# ============================================================
+
+class JournalAuditRead(ORMBase):
+    id: int
+    table_cible: str
+    enregistrement_id: int
+    action: str
+    auteur_id: int | None
+    date_action: datetime
+    ancienne_valeur: dict | None
+    nouvelle_valeur: dict | None

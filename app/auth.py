@@ -62,6 +62,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     utilisateur = db.get(models.Utilisateur, user_id)
     if utilisateur is None or not utilisateur.actif:
         raise erreur_auth
+    # Dépose l'auteur dans la session : les listeners du journal d'audit le reliront au flush.
+    db.info["auteur_id"] = utilisateur.id
     return utilisateur
 
 
