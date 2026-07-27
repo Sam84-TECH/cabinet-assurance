@@ -1,24 +1,28 @@
 """
 Module Quittance (POL) — le détail financier d'un avenant.
+Les quittances sont générées automatiquement à la validation d'un avenant (RF-SOUS-07,
+voir app/facturation.py) ; la création manuelle est verrouillée. La table reste en
+lecture seule via l'API (consultation), sans DELETE (règle métier n°12).
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
 from ..database import get_db
-from ..numerotation import generer_numero_quittance
-from ..auth import get_current_user
 
 router = APIRouter(prefix="/quittances", tags=["Quittance"])
 
 
-@router.post("", response_model=schemas.QuittanceRead)
-def create_quittance(payload: schemas.QuittanceCreate, db: Session = Depends(get_db),
-                      user: models.Utilisateur = Depends(get_current_user)):
-    data = payload.model_dump()
-    data["numero_quittance"] = generer_numero_quittance(db)
-    return crud.create(db, models.Quittance, data)
+@router.post("", deprecated=True)
+def create_quittance():
+    """Verrouillé : la quittance est générée automatiquement à la validation d'un avenant
+    (RF-SOUS-07). La création manuelle est désactivée pour éviter les doublons."""
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Création manuelle de quittance désactivée : elle est générée automatiquement "
+               "à la validation de l'avenant (RF-SOUS-07).",
+    )
 
 
 @router.get("", response_model=list[schemas.QuittanceRead])

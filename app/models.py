@@ -319,6 +319,7 @@ class PoliceGarantie(Base):
 
 class Quittance(Base):
     __tablename__ = "quittance"
+    __table_args__ = (UniqueConstraint("avenant_id", name="uq_quittance_avenant_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     numero_quittance: Mapped[str] = mapped_column(String(30), unique=True)
