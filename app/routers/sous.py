@@ -11,6 +11,7 @@ from .. import crud, models, schemas
 from ..database import get_db
 from ..numerotation import generer_numero_police
 from ..sync import synchroniser_statuts_polices
+from ..facturation import generer_quittance_pour_avenant
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/sous", tags=["Souscription"])
@@ -57,13 +58,15 @@ def valider_avenant(avenant_id: int, db: Session = Depends(get_db),
     """Valide un avenant brouillon (règle CDCF : un avenant doit être validé pour prendre
     effet). Répercute l'effet sur la police via la synchronisation : un avenant de résiliation
     ou de suspension bascule la police en 'resilie' / 'suspendu' — immédiatement si sa date
-    d'effet est atteinte, sinon à cette date. L'auteur est déduit du jeton de connexion."""
+    d'effet est atteinte, sinon à cette date. Génère aussi automatiquement la quittance à
+    partir des garanties de la police (RF-SOUS-07). L'auteur est déduit du jeton de connexion."""
     avenant = crud.get_or_404(db, models.Avenant, avenant_id)
     if avenant.statut != models.StatutAvenant.brouillon:
         raise HTTPException(400, "Seul un avenant en brouillon peut être validé.")
     avenant.statut = models.StatutAvenant.valide
     avenant.valide_par = user.id
     avenant.date_validation = datetime.now()
+    generer_quittance_pour_avenant(db, avenant)  # RF-SOUS-07 : quittance auto depuis les garanties
     db.commit()
     synchroniser_statuts_polices(db)  # applique l'effet sur le statut de la police
     db.refresh(avenant)
