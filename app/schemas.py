@@ -346,6 +346,11 @@ class EncaissementQuittanceRead(ORMBase):
     montant_affecte: Decimal
 
 
+class AffectationCreate(BaseModel):
+    # encaissement_id et quittance_id viennent de l'URL (/encaissements/{id}/affecter/{qid}), pas du corps
+    montant_affecte: Decimal
+
+
 # ============================================================
 # BLOC 6 — Versement bancaire
 # ============================================================
