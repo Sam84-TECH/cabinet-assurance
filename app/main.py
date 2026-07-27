@@ -3,6 +3,9 @@ Point d'entrée de l'API — assemble tous les modules (routers).
 Lancement en dev : uvicorn app.main:app --reload
 """
 
+import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,26 +16,33 @@ from .audit import configurer_audit
 # Active l'historisation automatique (journal d'audit) sur tous les mappers.
 configurer_audit()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Démarrage : lance le planificateur (synchronisation périodique des statuts).
+    demarrer_scheduler()
+    yield
+    # Arrêt : coupe proprement le planificateur.
+    arreter_scheduler()
+
+
 app = FastAPI(
     title="Cabinet Assurance — API",
     description="Souscription auto, quittance, encaissement, versement, reversement, recouvrement",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
-
-@app.on_event("startup")
-def au_demarrage():
-    demarrer_scheduler()
-
-
-@app.on_event("shutdown")
-def a_larret():
-    arreter_scheduler()
-
-# Autorise le frontend React (dev, sur un autre port) à appeler cette API.
+# CORS : origines autorisées via CORS_ORIGINS (liste séparée par des virgules), par défaut
+# les ports de dev locaux du frontend React. Ne jamais laisser "*" en production.
+origines_cors = [
+    origine.strip()
+    for origine in os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+    if origine.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # à restreindre à l'URL réelle du frontend en production
+    allow_origins=origines_cors,
     allow_methods=["*"],
     allow_headers=["*"],
 )
