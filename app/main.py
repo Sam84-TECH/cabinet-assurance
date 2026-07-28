@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import referentiel, client, sous, risque, police_garantie, piece_fournie, quittance, encaissement, banq, rev, recouv, dashboard, reporting, audit, auth as auth_router
+from .routers import referentiel, client, sous, risque, police_garantie, piece_fournie, quittance, encaissement, banq, rev, recouv, dashboard, reporting, audit, recherche, auth as auth_router
 from .scheduler import demarrer_scheduler, arreter_scheduler
 from .audit import configurer_audit
 
@@ -62,6 +62,7 @@ app.include_router(recouv.router)
 app.include_router(dashboard.router)
 app.include_router(reporting.router)
 app.include_router(audit.router)
+app.include_router(recherche.router)
 
 
 @app.get("/", tags=["Santé"])

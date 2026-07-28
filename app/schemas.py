@@ -489,3 +489,14 @@ class JournalAuditRead(ORMBase):
     date_action: datetime
     ancienne_valeur: dict | None
     nouvelle_valeur: dict | None
+
+
+# ============================================================
+# Recherche multicritère
+# ============================================================
+
+class RechercheResultats(BaseModel):
+    clients: list[ClientRead]
+    polices: list[PoliceRead]
+    quittances: list[QuittanceRead]
+    risques: list[RisqueRead]
