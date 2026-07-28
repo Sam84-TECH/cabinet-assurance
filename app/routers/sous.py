@@ -2,7 +2,7 @@
 Module Souscription (SOUS) — police et avenant.
 """
 
-from datetime import datetime
+from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -100,3 +100,39 @@ def valider_avenant(avenant_id: int, db: Session = Depends(get_db),
     synchroniser_statuts_polices(db)  # applique l'effet sur le statut de la police
     db.refresh(avenant)
     return avenant
+
+
+def _plus_un_an(d: date) -> date:
+    """Ajoute un an à une date, en ramenant le 29 février au 28 (année non bissextile)."""
+    try:
+        return d.replace(year=d.year + 1)
+    except ValueError:
+        return d.replace(year=d.year + 1, day=28)
+
+
+@router.post("/polices/{police_id}/renouveler", response_model=schemas.QuittanceRead)
+def renouveler_police(police_id: int, db: Session = Depends(get_db),
+                      user: models.Utilisateur = Depends(get_current_user)):
+    """Renouvellement en un geste (Module 5) : crée et valide un avenant de renouvellement,
+    décale la période de garantie d'un an, et génère la quittance correspondante (RF-SOUS-07).
+    Renvoie la quittance générée. L'auteur est déduit du jeton de connexion."""
+    police = crud.get_or_404(db, models.Police, police_id)
+    if police.statut != models.StatutPolice.en_vigueur:
+        raise HTTPException(400, "Seule une police en vigueur peut être renouvelée.")
+    police.date_effet = _plus_un_an(police.date_effet)
+    police.date_echeance = _plus_un_an(police.date_echeance)
+    avenant = models.Avenant(
+        police_id=police.id,
+        type_avenant=models.TypeAvenant.renouvellement,
+        motif="Renouvellement annuel",
+        date_effet=police.date_effet,
+        statut=models.StatutAvenant.valide,
+        valide_par=user.id,
+        date_validation=datetime.now(),
+    )
+    db.add(avenant)
+    db.flush()  # attribue l'id de l'avenant avant de générer la quittance
+    quittance = generer_quittance_pour_avenant(db, avenant)
+    db.commit()
+    db.refresh(quittance)
+    return quittance
