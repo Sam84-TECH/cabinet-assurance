@@ -119,6 +119,14 @@ def renouveler_police(police_id: int, db: Session = Depends(get_db),
     police = crud.get_or_404(db, models.Police, police_id)
     if police.statut != models.StatutPolice.en_vigueur:
         raise HTTPException(400, "Seule une police en vigueur peut être renouvelée.")
+    # Garde anti-double-renouvellement : un avenant de renouvellement à effet futur existe déjà
+    # -> la police a déjà été renouvelée (évite un double avenant et une double quittance).
+    if db.query(models.Avenant).filter(
+        models.Avenant.police_id == police.id,
+        models.Avenant.type_avenant == models.TypeAvenant.renouvellement,
+        models.Avenant.date_effet > date.today(),
+    ).first() is not None:
+        raise HTTPException(409, "Cette police a déjà un renouvellement enregistré à effet futur.")
     police.date_effet = _plus_un_an(police.date_effet)
     police.date_echeance = _plus_un_an(police.date_echeance)
     avenant = models.Avenant(
