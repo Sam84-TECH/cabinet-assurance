@@ -260,6 +260,20 @@ class PoliceGarantieRead(ORMBase):
     montant_prime: Decimal | None
 
 
+class PieceJustificativeFournieCreate(BaseModel):
+    police_id: int
+    piece_requise_id: int
+    reference: str | None = None
+
+
+class PieceJustificativeFournieRead(ORMBase):
+    id: int
+    police_id: int
+    piece_requise_id: int
+    reference: str | None
+    date_fourniture: date
+
+
 # ============================================================
 # BLOC 4 — Quittance
 # ============================================================

@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import referentiel, client, sous, risque, police_garantie, quittance, encaissement, banq, rev, recouv, dashboard, reporting, audit, auth as auth_router
+from .routers import referentiel, client, sous, risque, police_garantie, piece_fournie, quittance, encaissement, banq, rev, recouv, dashboard, reporting, audit, auth as auth_router
 from .scheduler import demarrer_scheduler, arreter_scheduler
 from .audit import configurer_audit
 
@@ -53,6 +53,7 @@ app.include_router(client.router)
 app.include_router(sous.router)
 app.include_router(risque.router)
 app.include_router(police_garantie.router)
+app.include_router(piece_fournie.router)
 app.include_router(quittance.router)
 app.include_router(encaissement.router)
 app.include_router(banq.router)

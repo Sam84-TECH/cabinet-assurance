@@ -98,6 +98,11 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
     d'intégrité. Toute entité référencée ailleurs est vérifiée **avant** suppression —
     contrôle générique des clés étrangères entrantes dans `crud.delete` — et un `DELETE`
     bloqué renvoie un **409** nommant ce qui référence l'entité, jamais un traceback SQL.
+16. **Une police ne peut être émise sans ses pièces justificatives obligatoires** (RF-SOUS-04) :
+    la validation de l'avenant d'**affaire nouvelle** est refusée (400, pièces manquantes
+    nommées) tant qu'une pièce obligatoire du produit n'est pas fournie pour le dossier
+    (table `piece_justificative_fournie`, marquée via `POST /pieces-fournies`). Le
+    renouvellement n'y est pas soumis (pièces déjà au dossier).
 
 ## État actuel — travail restant, par ordre de priorité
 
@@ -146,6 +151,8 @@ créer un client entreprise
   → créer une police (produit Auto)
   → ajouter un véhicule (risque)
   → ajouter les garanties avec leurs primes
+  → marquer les pièces justificatives obligatoires comme fournies (POST /pieces-fournies)
+    — sinon l'émission est bloquée (RF-SOUS-04)
   → créer l'avenant « affaire nouvelle » puis le valider
   → vérifier que la quittance a été générée automatiquement
   → enregistrer un encaissement par chèque et l'affecter à la quittance

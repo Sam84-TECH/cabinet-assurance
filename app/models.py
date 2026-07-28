@@ -313,6 +313,21 @@ class PoliceGarantie(Base):
     montant_prime: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
 
 
+class PieceJustificativeFournie(Base):
+    """Pièce justificative effectivement fournie pour une police (dossier de souscription).
+    Support du contrôle RF-SOUS-04 : émission bloquée tant qu'une pièce obligatoire manque."""
+    __tablename__ = "piece_justificative_fournie"
+    __table_args__ = (
+        UniqueConstraint("police_id", "piece_requise_id", name="uq_piece_fournie_police_requise"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    police_id: Mapped[int] = mapped_column(ForeignKey("police.id"))
+    piece_requise_id: Mapped[int] = mapped_column(ForeignKey("piece_justificative_requise.id"))
+    reference: Mapped[str | None] = mapped_column(String(255))
+    date_fourniture: Mapped[date] = mapped_column(Date, server_default=func.current_date())
+
+
 # ============================================================
 # BLOC 4 — Quittance (module POL)
 # ============================================================
