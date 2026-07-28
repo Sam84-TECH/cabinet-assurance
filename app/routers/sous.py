@@ -6,6 +6,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from .. import crud, models, schemas
 from ..database import get_db
@@ -67,7 +68,13 @@ def valider_avenant(avenant_id: int, db: Session = Depends(get_db),
     avenant.valide_par = user.id
     avenant.date_validation = datetime.now()
     generer_quittance_pour_avenant(db, avenant)  # RF-SOUS-07 : quittance auto depuis les garanties
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Course concurrente : un autre appel a déjà validé cet avenant et créé sa quittance
+        # (contrainte uq_quittance_avenant_id). On renvoie un 409 propre plutôt qu'un 500.
+        db.rollback()
+        raise HTTPException(409, "Cet avenant vient d'être validé par une autre opération.")
     synchroniser_statuts_polices(db)  # applique l'effet sur le statut de la police
     db.refresh(avenant)
     return avenant

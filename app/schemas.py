@@ -264,21 +264,6 @@ class PoliceGarantieRead(ORMBase):
 # BLOC 4 — Quittance
 # ============================================================
 
-class QuittanceCreate(BaseModel):
-    # numero_quittance n'est PAS fourni par le client : généré automatiquement par le serveur
-    police_id: int
-    avenant_id: int
-    periode_debut: date
-    periode_fin: date
-    prime_nette: Decimal
-    taxes: Decimal = Decimal("0")
-    timbres: Decimal = Decimal("0")
-    commission: Decimal = Decimal("0")
-    accessoires: Decimal = Decimal("0")
-    prime_ttc: Decimal
-    statut: StatutQuittance = StatutQuittance.emise
-
-
 class QuittanceRead(ORMBase):
     id: int
     numero_quittance: str
