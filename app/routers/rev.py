@@ -13,6 +13,7 @@ d'encaissement de la quittance.
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
@@ -21,6 +22,26 @@ from ..numerotation import generer_numero_bordereau_reversement
 from ..auth import exiger_role, get_current_user
 
 router = APIRouter(prefix="/rev", tags=["Reversement compagnie"])
+
+# Statuts d'un bordereau où le reversement est définitivement engagé : une quittance qui y
+# figure est considérée comme déjà reversée. Un bordereau en brouillon, lui, peut être abandonné.
+STATUTS_REVERSEMENT_DEFINITIFS = (
+    models.StatutBordereauReversement.valide,
+    models.StatutBordereauReversement.reverse,
+)
+
+
+def _quittances_deja_reversees(db: Session):
+    """Sous-requête des quittances déjà reversées définitivement (portées à un bordereau validé
+    ou reversé). On n'exclut PAS les quittances d'un simple brouillon : un brouillon peut être
+    abandonné, et l'exclure définitivement bloquerait à jamais la quittance (aucun DELETE sur les
+    lignes, règle 12). L'anti-double-reversement s'appuie donc sur les seuls bordereaux définitifs."""
+    return (
+        select(models.BordereauReversementLigne.quittance_id)
+        .join(models.BordereauReversement,
+              models.BordereauReversement.id == models.BordereauReversementLigne.bordereau_reversement_id)
+        .where(models.BordereauReversement.statut.in_(STATUTS_REVERSEMENT_DEFINITIFS))
+    )
 
 
 def _trouver_taux_commission(db: Session, compagnie_id: int, produit_id: int) -> Decimal:
@@ -41,6 +62,12 @@ def _trouver_taux_commission(db: Session, compagnie_id: int, produit_id: int) ->
         return bareme_general.taux_commission
 
     raise HTTPException(400, "Aucun barème de commission paramétré pour cette compagnie/produit.")
+
+
+def _commission_ligne(db: Session, compagnie_id: int, produit_id: int, prime_nette: Decimal) -> Decimal:
+    """Commission d'une ligne de reversement = prime nette × taux du barème applicable."""
+    taux = _trouver_taux_commission(db, compagnie_id, produit_id)
+    return (prime_nette * taux / Decimal("100")).quantize(Decimal("0.01"))
 
 
 @router.post("/bordereaux", response_model=schemas.BordereauReversementRead)
@@ -67,7 +94,9 @@ def ajouter_quittance(bordereau_id: int, quittance_id: int, db: Session = Depend
                        user: models.Utilisateur = Depends(get_current_user)):
     """
     Ajoute une quittance au bordereau, avec calcul automatique de la commission
-    selon le barème compagnie/produit (RF-REV-01, RF-REV-03).
+    selon le barème compagnie/produit (RF-REV-01, RF-REV-03). Refuse une quittance déjà
+    reversée (bordereau validé/reversé), sauf sur un bordereau rectificatif — qui corrige
+    justement un reversement antérieur.
     """
     bordereau = crud.get_or_404(db, models.BordereauReversement, bordereau_id)
     if bordereau.statut != models.StatutBordereauReversement.brouillon:
@@ -76,8 +105,18 @@ def ajouter_quittance(bordereau_id: int, quittance_id: int, db: Session = Depend
     quittance = crud.get_or_404(db, models.Quittance, quittance_id)
     police = crud.get_or_404(db, models.Police, quittance.police_id)
 
-    taux = _trouver_taux_commission(db, bordereau.compagnie_id, police.produit_id)
-    commission = (quittance.prime_nette * taux / Decimal("100")).quantize(Decimal("0.01"))
+    # Anti-double-reversement : une quittance déjà reversée définitivement ne peut l'être à
+    # nouveau. Exemption pour un bordereau rectificatif, dont c'est précisément le rôle.
+    if bordereau.rectifie_bordereau_id is None and db.query(
+        _quittances_deja_reversees(db).where(
+            models.BordereauReversementLigne.quittance_id == quittance_id
+        ).exists()
+    ).scalar():
+        raise HTTPException(
+            409, "Cette quittance figure déjà sur un bordereau de reversement validé : "
+                 "toute correction passe par un bordereau rectificatif.")
+
+    commission = _commission_ligne(db, bordereau.compagnie_id, police.produit_id, quittance.prime_nette)
 
     return crud.create(db, models.BordereauReversementLigne, {
         "bordereau_reversement_id": bordereau_id,
@@ -85,6 +124,66 @@ def ajouter_quittance(bordereau_id: int, quittance_id: int, db: Session = Depend
         "prime_nette_reversee": quittance.prime_nette,
         "commission_calculee": commission,
     })
+
+
+@router.post("/bordereaux/{bordereau_id}/selectionner-periode",
+             response_model=list[schemas.BordereauReversementLigneRead])
+def selectionner_quittances_periode(bordereau_id: int, db: Session = Depends(get_db),
+                                     user: models.Utilisateur = Depends(get_current_user)):
+    """
+    Sélection automatique des quittances à reverser pour la période du bordereau (RF-REV-01) :
+    ajoute d'un seul geste toutes les quittances non annulées de la compagnie du bordereau,
+    émises entre `periode_debut` et `periode_fin`, qui ne sont pas déjà reversées (portées à un
+    bordereau validé ou reversé) pour éviter tout double reversement, avec leur commission
+    calculée selon le barème. Le statut d'encaissement n'est pas un critère (règle 9 : le
+    reversement peut précéder l'encaissement du chèque). Réservé à un bordereau en brouillon ;
+    renvoie les lignes ajoutées.
+    """
+    bordereau = crud.get_or_404(db, models.BordereauReversement, bordereau_id)
+    if bordereau.statut != models.StatutBordereauReversement.brouillon:
+        raise HTTPException(400, "Ce bordereau est validé : toute correction doit passer par un bordereau rectificatif.")
+
+    # Quittances déjà reversées définitivement (bordereau validé/reversé) : exclues pour ne
+    # jamais reverser deux fois la même prime. Les brouillons ne comptent pas (cf. helper).
+    deja_reversees = _quittances_deja_reversees(db)
+    # Quittances déjà présentes sur CE bordereau : exclues pour rendre l'appel idempotent
+    # (une 2e sélection ne duplique pas les lignes déjà ajoutées).
+    deja_sur_ce_bordereau = select(models.BordereauReversementLigne.quittance_id).where(
+        models.BordereauReversementLigne.bordereau_reversement_id == bordereau_id
+    )
+
+    quittances = (
+        db.query(models.Quittance)
+        .join(models.Police, models.Police.id == models.Quittance.police_id)
+        .join(models.Produit, models.Produit.id == models.Police.produit_id)
+        .filter(
+            models.Produit.compagnie_id == bordereau.compagnie_id,
+            models.Quittance.statut != models.StatutQuittance.annulee,
+            func.date(models.Quittance.date_creation) >= bordereau.periode_debut,
+            func.date(models.Quittance.date_creation) <= bordereau.periode_fin,
+            models.Quittance.id.not_in(deja_reversees),
+            models.Quittance.id.not_in(deja_sur_ce_bordereau),
+        )
+        .order_by(models.Quittance.id)
+        .all()
+    )
+
+    lignes = []
+    for quittance in quittances:
+        police = db.get(models.Police, quittance.police_id)
+        commission = _commission_ligne(db, bordereau.compagnie_id, police.produit_id, quittance.prime_nette)
+        ligne = models.BordereauReversementLigne(
+            bordereau_reversement_id=bordereau_id,
+            quittance_id=quittance.id,
+            prime_nette_reversee=quittance.prime_nette,
+            commission_calculee=commission,
+        )
+        db.add(ligne)
+        lignes.append(ligne)
+    db.commit()
+    for ligne in lignes:
+        db.refresh(ligne)
+    return lignes
 
 
 @router.patch("/bordereaux/{bordereau_id}/valider", response_model=schemas.BordereauReversementRead)
@@ -113,3 +212,30 @@ def valider_bordereau(bordereau_id: int, db: Session = Depends(get_db),
     db.commit()
     db.refresh(bordereau)
     return bordereau
+
+
+@router.post("/bordereaux/{bordereau_id}/rectifier", response_model=schemas.BordereauReversementRead)
+def rectifier_bordereau(bordereau_id: int, db: Session = Depends(get_db),
+                        user: models.Utilisateur = Depends(get_current_user)):
+    """
+    Crée un bordereau de reversement rectificatif (règle CDCF n°7) : un bordereau validé n'étant
+    plus modifiable, toute correction passe par un NOUVEAU bordereau en brouillon qui référence
+    l'original (`rectifie_bordereau_id`) pour la traçabilité. Il reprend la compagnie et la
+    période de l'original ; les lignes correctives s'y ajoutent ensuite **une par une** via
+    `ajouter/{quittance_id}` (la sélection de période ne reprend pas les quittances déjà
+    reversées, c'est voulu), puis il suit le circuit de validation habituel (super administrateur).
+    Seul un bordereau déjà validé peut être rectifié — un brouillon se corrige directement.
+    """
+    original = crud.get_or_404(db, models.BordereauReversement, bordereau_id)
+    if original.statut == models.StatutBordereauReversement.brouillon:
+        raise HTTPException(
+            400, "Ce bordereau est encore en brouillon : modifiez-le directement, un rectificatif est inutile.")
+
+    return crud.create(db, models.BordereauReversement, {
+        "numero_bordereau": generer_numero_bordereau_reversement(db),
+        "compagnie_id": original.compagnie_id,
+        "periode_debut": original.periode_debut,
+        "periode_fin": original.periode_fin,
+        "statut": models.StatutBordereauReversement.brouillon,
+        "rectifie_bordereau_id": original.id,
+    })

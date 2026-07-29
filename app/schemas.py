@@ -448,6 +448,7 @@ class BordereauReversementRead(ORMBase):
     date_generation: datetime
     valide_par: int | None
     date_validation: datetime | None
+    rectifie_bordereau_id: int | None  # bordereau original corrigé (règle 7), NULL si initial
 
 
 class BordereauReversementLigneCreate(BaseModel):

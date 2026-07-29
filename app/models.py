@@ -456,8 +456,10 @@ class BordereauReversement(Base):
     date_generation: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     valide_par: Mapped[int | None] = mapped_column(ForeignKey("utilisateur.id"))
     date_validation: Mapped[datetime | None] = mapped_column(DateTime)
-    # Règle CDCF : un bordereau validé ne peut plus être modifié ;
-    # toute correction = nouveau bordereau rectificatif (géré au niveau applicatif, pas en DB)
+    # Règle CDCF n°7 : un bordereau validé ne peut plus être modifié ; toute correction passe
+    # par un nouveau bordereau rectificatif. Ce champ trace le bordereau original corrigé
+    # (NULL pour un bordereau initial), pour garder le lien de correction en base.
+    rectifie_bordereau_id: Mapped[int | None] = mapped_column(ForeignKey("bordereau_reversement.id"))
 
 
 class BordereauReversementLigne(Base):
