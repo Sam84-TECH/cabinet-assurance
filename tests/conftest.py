@@ -41,6 +41,12 @@ def _recreer_base_test():
     """Supprime puis recrée la base de test : schéma et données vierges à chaque session."""
     url = make_url(TEST_DB_URL)
     nom = url.database
+    # Garde-fou : on ne DROP JAMAIS qu'une base dont le nom se termine par « _test ».
+    # Protège contre un TEST_DATABASE_URL mal réglé qui pointerait sur la base de dev.
+    assert nom and nom.endswith("_test"), (
+        f"Base de test refusée : « {nom} » ne se termine pas par « _test ». "
+        "Refus de DROP pour ne jamais détruire une base non dédiée aux tests."
+    )
     maintenance = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
     with maintenance.connect() as conn:
         conn.execute(text(f'DROP DATABASE IF EXISTS "{nom}" WITH (FORCE)'))

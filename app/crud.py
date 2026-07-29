@@ -3,12 +3,15 @@ Fonctions CRUD génériques (Create/Read/Update/Delete).
 Évite de réécrire les mêmes 4 opérations pour chacune des 23 tables.
 """
 
+import logging
 import re
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select, inspect as sa_inspect, or_
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
+
+logger = logging.getLogger("crud")
 
 
 def _erreur_integrite(err: IntegrityError) -> HTTPException:
@@ -70,8 +73,10 @@ def create(db: Session, model, data: dict):
         db.commit()
     except IntegrityError as err:
         # Filet générique : une violation de contrainte (unicité CIN/ICE, numéro déjà pris,
-        # check…) devient un 409/400 explicite au lieu d'un 500 avec traceback SQL.
+        # check…) devient un 409/400 explicite au lieu d'un 500 avec traceback SQL. On
+        # journalise l'erreur d'origine (stack SQL) pour garder l'observabilité serveur.
         db.rollback()
+        logger.warning("IntegrityError à la création de %s : %s", model.__name__, err, exc_info=True)
         raise _erreur_integrite(err)
     db.refresh(obj)
     return obj
@@ -115,6 +120,7 @@ def update(db: Session, model, id: int, data: dict):
         db.commit()
     except IntegrityError as err:
         db.rollback()
+        logger.warning("IntegrityError à la mise à jour de %s %s : %s", model.__name__, id, err, exc_info=True)
         raise _erreur_integrite(err)
     db.refresh(obj)
     return obj
@@ -154,13 +160,14 @@ def delete(db: Session, model, id: int):
     db.delete(obj)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as err:
         # Filet de sécurité pour honorer la règle 15 de façon absolue. Le pré-contrôle
         # ci-dessus couvre et détaille les cas normaux, mais une course concurrente (une
         # référence insérée entre le contrôle et le commit) ou une FK présente en base
         # mais non modélisée pourrait encore lever une IntegrityError : on la convertit
-        # en 409 au lieu de laisser remonter un 500.
+        # en 409 au lieu de laisser remonter un 500 (en journalisant l'origine).
         db.rollback()
+        logger.warning("IntegrityError à la suppression de %s %s : %s", model.__name__, id, err, exc_info=True)
         raise HTTPException(
             status_code=409,
             detail=f"Suppression impossible : {model.__name__} {id} est référencé ailleurs.",

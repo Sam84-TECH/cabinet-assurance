@@ -1,4 +1,6 @@
 # Dépendances de développement / test uniquement (la recette pytest bout en bout).
 # Installer avec :  pip install -r requirements-dev.txt
-pytest
-httpx
+# Versions épinglées : TestClient dépend de la compatibilité httpx/Starlette, on fige
+# donc les versions avec lesquelles la recette a été validée (reproductibilité).
+pytest==9.1.1
+httpx==0.28.1
