@@ -3,10 +3,44 @@ Fonctions CRUD génériques (Create/Read/Update/Delete).
 Évite de réécrire les mêmes 4 opérations pour chacune des 23 tables.
 """
 
+import re
+
 from sqlalchemy.orm import Session
 from sqlalchemy import select, inspect as sa_inspect, or_
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
+
+
+def _erreur_integrite(err: IntegrityError) -> HTTPException:
+    """Traduit une IntegrityError PostgreSQL en HTTPException explicite — jamais un 500 avec
+    traceback SQL. Générique (indépendant de la table) : s'appuie sur le code SQLSTATE et le
+    détail du diagnostic Postgres. Utilisé comme filet par create() et update() ; couvre donc
+    toute contrainte (unicité CIN/ICE, numéro de police, etc.) sans code dédié par entité.
+
+      - 23505 unicité      -> 409 en nommant le(s) champ(s) et la valeur en doublon
+      - 23502 non-null     -> 400 (champ obligatoire absent)
+      - 23514 check        -> 400 (règle de cohérence non respectée)
+      - autres (23503…)    -> 409 générique
+    """
+    orig = getattr(err, "orig", None)
+    sqlstate = getattr(orig, "sqlstate", None)
+    diag = getattr(orig, "diag", None)
+    detail = (getattr(diag, "message_detail", None) or "") if diag is not None else ""
+
+    if sqlstate == "23505":  # unique_violation
+        # detail Postgres, ex. : « Key (cin)=(AB123456) already exists. »
+        correspondance = re.search(r"\(([^)]+)\)=\(([^)]*)\)", detail)
+        if correspondance:
+            champs, valeur = correspondance.group(1), correspondance.group(2)
+            return HTTPException(409, f"Doublon : {champs} = « {valeur} » existe déjà.")
+        return HTTPException(409, "Doublon : cette valeur enfreint une contrainte d'unicité.")
+    if sqlstate == "23502":  # not_null_violation
+        champ = getattr(diag, "column_name", None) if diag is not None else None
+        return HTTPException(400, f"Champ obligatoire manquant : {champ or 'valeur requise absente'}.")
+    if sqlstate == "23514":  # check_violation
+        contrainte = getattr(diag, "constraint_name", None) if diag is not None else None
+        return HTTPException(400, f"Données incohérentes : contrainte non respectée ({contrainte or 'check'}).")
+    return HTTPException(409, "Violation d'une contrainte d'intégrité.")
 
 
 def _valider_cles_etrangeres(db: Session, model, data: dict):
@@ -32,7 +66,13 @@ def create(db: Session, model, data: dict):
     _valider_cles_etrangeres(db, model, data)
     obj = model(**data)
     db.add(obj)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as err:
+        # Filet générique : une violation de contrainte (unicité CIN/ICE, numéro déjà pris,
+        # check…) devient un 409/400 explicite au lieu d'un 500 avec traceback SQL.
+        db.rollback()
+        raise _erreur_integrite(err)
     db.refresh(obj)
     return obj
 
@@ -71,7 +111,11 @@ def update(db: Session, model, id: int, data: dict):
     # `exclude_unset` (côté endpoint) qui distingue « champ absent » de « champ mis à null ».
     for key, value in data.items():
         setattr(obj, key, value)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as err:
+        db.rollback()
+        raise _erreur_integrite(err)
     db.refresh(obj)
     return obj
 

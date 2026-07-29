@@ -5,7 +5,6 @@ non comptable : il expose donc un DELETE (règles 11 et 12). Même style que cli
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
@@ -36,13 +35,9 @@ def create_lien(payload: schemas.LienFamilialCreate, db: Session = Depends(get_d
     """Crée un lien familial. Les clients souscripteur et membre doivent exister (404 sinon,
     via le contrôle générique des clés étrangères de crud.create)."""
     _valider_lien(db, payload.souscripteur_id, payload.membre_id)
-    try:
-        return crud.create(db, models.LienFamilial, payload.model_dump())
-    except IntegrityError:
-        # Filet concurrence : deux créations simultanées du même couple passent le pré-contrôle
-        # ci-dessus, la seconde heurte la contrainte unique -> 409 propre plutôt qu'un 500.
-        db.rollback()
-        raise HTTPException(409, MESSAGE_DOUBLON)
+    # Le doublon concurrent (course sur la contrainte unique) est rattrapé génériquement par
+    # crud.create (filet IntegrityError -> 409), sans code local dédié ici.
+    return crud.create(db, models.LienFamilial, payload.model_dump())
 
 
 @router.get("", response_model=list[schemas.LienFamilialRead])
@@ -68,11 +63,7 @@ def update_lien(lien_id: int, payload: schemas.LienFamilialCreate, db: Session =
     souscripteur_id = data.get("souscripteur_id", lien.souscripteur_id)
     membre_id = data.get("membre_id", lien.membre_id)
     _valider_lien(db, souscripteur_id, membre_id, lien_id=lien_id)
-    try:
-        return crud.update(db, models.LienFamilial, lien_id, data)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(409, MESSAGE_DOUBLON)
+    return crud.update(db, models.LienFamilial, lien_id, data)
 
 
 @router.delete("/{lien_id}", status_code=204)
