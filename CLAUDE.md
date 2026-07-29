@@ -131,7 +131,7 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 - [ ] Recherche multicritère `GET /recherche?q=` (nom, CIN, ICE, n° police, immatriculation, n° quittance)
 - [ ] Solde client / vue 360 (encaissé vs restant dû)
 - [x] Reçu d'encaissement, rejet de chèque (statut `rejete` défini mais jamais utilisé)
-- [ ] Reversement : sélection automatique des quittances de la période, bordereau rectificatif
+- [x] Reversement : sélection automatique des quittances de la période, bordereau rectificatif
 - [x] Recouvrement : balance âgée 0-30 / 30-60 / 60-90 / 90+ jours, bascule automatique en recouvrement au dépassement du délai
 - [ ] Router `LienFamilial` (gestion familiale)
 
