@@ -133,7 +133,7 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 - [x] Reçu d'encaissement, rejet de chèque (statut `rejete` défini mais jamais utilisé)
 - [x] Reversement : sélection automatique des quittances de la période, bordereau rectificatif
 - [x] Recouvrement : balance âgée 0-30 / 30-60 / 60-90 / 90+ jours, bascule automatique en recouvrement au dépassement du délai
-- [ ] Router `LienFamilial` (gestion familiale)
+- [x] Router `LienFamilial` (gestion familiale)
 
 ### 4. Éditions et livraison
 - [ ] Génération PDF : quittance, police, attestation, bordereau de versement, bordereau de reversement
