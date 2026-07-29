@@ -350,6 +350,31 @@ class AffectationCreate(BaseModel):
     montant_affecte: Decimal
 
 
+class RejetChequeCreate(BaseModel):
+    # encaissement_id vient de l'URL (/encaissements/{id}/rejeter), pas du corps
+    motif: str
+    date_rejet: date | None = None  # défaut : date du jour
+
+
+class LigneRecu(ORMBase):
+    quittance_id: int
+    numero_quittance: str
+    montant_affecte: Decimal
+
+
+class RecuEncaissement(BaseModel):
+    """Reçu d'encaissement (RF-ENC-04) — édition à la demande, dérivée de l'encaissement
+    (pas de table dédiée, à l'image des rapports en JSON tant que le PDF n'est pas branché)."""
+    numero_recu: str
+    date_edition: date
+    encaissement: EncaissementRead
+    client: ClientRead
+    montant_affecte: Decimal
+    montant_non_affecte: Decimal
+    quittances_reglees: list[LigneRecu]
+    enregistre_par: UtilisateurRead | None
+
+
 # ============================================================
 # BLOC 6 — Versement bancaire
 # ============================================================
@@ -476,6 +501,37 @@ class RelanceRead(ORMBase):
     resultat: str | None
 
 
+# ----- Balance âgée des impayés (RF-RECOUV-01) -----
+
+class TrancheBalance(BaseModel):
+    nombre: int
+    montant: Decimal
+
+
+class LigneBalanceAgee(BaseModel):
+    quittance_id: int
+    numero_quittance: str
+    police_id: int
+    client_id: int | None
+    client: str
+    periode_debut: date
+    reste_du: Decimal
+    jours_retard: int
+    tranche: str
+
+
+class BalanceAgee(BaseModel):
+    """Créances client impayées ventilées par ancienneté (0-30, 30-60, 60-90, +90 jours)."""
+    date_reference: date
+    tranche_0_30: TrancheBalance
+    tranche_30_60: TrancheBalance
+    tranche_60_90: TrancheBalance
+    tranche_90_plus: TrancheBalance
+    total_impaye: Decimal
+    nombre_quittances: int
+    lignes: list[LigneBalanceAgee]
+
+
 # ============================================================
 # Journal d'audit (consultation seule — jamais créé via l'API)
 # ============================================================
@@ -500,3 +556,21 @@ class RechercheResultats(BaseModel):
     polices: list[PoliceRead]
     quittances: list[QuittanceRead]
     risques: list[RisqueRead]
+
+
+# ============================================================
+# Vue 360 client (RF-CRM-06, RF-ENC-05)
+# ============================================================
+
+class SoldeClient(BaseModel):
+    total_du: Decimal
+    total_encaisse: Decimal
+    reste_du: Decimal
+
+
+class Vue360Client(BaseModel):
+    client: ClientRead
+    polices: list[PoliceRead]
+    quittances: list[QuittanceRead]
+    solde: SoldeClient
+    encaissements: list[EncaissementRead]

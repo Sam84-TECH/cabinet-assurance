@@ -380,6 +380,10 @@ class Encaissement(Base):
     virement_rib: Mapped[str | None] = mapped_column(String(34))
     virement_reference: Mapped[str | None] = mapped_column(String(100))
 
+    # rejet de chèque (impayé) — trace de l'incident (motif + date), statut passe à `rejete`
+    motif_rejet: Mapped[str | None] = mapped_column(String(255))
+    date_rejet: Mapped[date | None] = mapped_column(Date)
+
     enregistre_par: Mapped[int | None] = mapped_column(ForeignKey("utilisateur.id"))
     date_creation: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

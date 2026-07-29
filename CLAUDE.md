@@ -130,9 +130,9 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 - [ ] Endpoint de renouvellement en un geste (avenant + décalage de période + quittance)
 - [ ] Recherche multicritère `GET /recherche?q=` (nom, CIN, ICE, n° police, immatriculation, n° quittance)
 - [ ] Solde client / vue 360 (encaissé vs restant dû)
-- [ ] Reçu d'encaissement, rejet de chèque (statut `rejete` défini mais jamais utilisé)
+- [x] Reçu d'encaissement, rejet de chèque (statut `rejete` défini mais jamais utilisé)
 - [ ] Reversement : sélection automatique des quittances de la période, bordereau rectificatif
-- [ ] Recouvrement : balance âgée 0-30 / 30-60 / 60-90 / 90+ jours, bascule automatique en recouvrement au dépassement du délai
+- [x] Recouvrement : balance âgée 0-30 / 30-60 / 60-90 / 90+ jours, bascule automatique en recouvrement au dépassement du délai
 - [ ] Router `LienFamilial` (gestion familiale)
 
 ### 4. Éditions et livraison
