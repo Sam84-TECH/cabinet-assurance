@@ -7,3 +7,6 @@ venv/
 # Caches Python
 __pycache__/
 *.pyc
+
+# Cache pytest
+.pytest_cache/

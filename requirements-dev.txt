@@ -1,0 +1,4 @@
+# Dépendances de développement / test uniquement (la recette pytest bout en bout).
+# Installer avec :  pip install -r requirements-dev.txt
+pytest
+httpx
