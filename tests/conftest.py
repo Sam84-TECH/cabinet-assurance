@@ -12,6 +12,7 @@ base « cabinet » de dev n'est jamais touchée — on travaille sur « cabinet_
 """
 
 import os
+import tempfile
 from pathlib import Path
 
 RACINE = Path(__file__).resolve().parent.parent
@@ -22,6 +23,9 @@ TEST_DB_URL = os.environ.get(
     "postgresql+psycopg://postgres:postgres@localhost:5433/cabinet_test",
 )
 os.environ["DATABASE_URL"] = TEST_DB_URL
+
+# Répertoire d'archives PDF isolé (hors projet) : la recette ne pollue pas le dossier de dev.
+os.environ["ARCHIVES_DIR"] = os.path.join(tempfile.gettempdir(), "cabinet_test_archives")
 
 # Fiscalité figée pour que la recette soit DÉTERMINISTE quel que soit le .env du poste :
 # facturation.py lit ces variables à l'import, et la recette assère des montants exacts

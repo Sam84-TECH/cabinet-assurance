@@ -10,3 +10,6 @@ __pycache__/
 
 # Cache pytest
 .pytest_cache/
+
+# Documents PDF archivés (générés côté serveur, non versionnés)
+archives/

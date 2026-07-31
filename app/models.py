@@ -107,6 +107,14 @@ class TypeRelance(str, PyEnum):
     mise_en_demeure = "mise_en_demeure"
 
 
+class TypeDocument(str, PyEnum):
+    quittance = "quittance"
+    attestation = "attestation"
+    police = "police"
+    bordereau_versement = "bordereau_versement"
+    bordereau_reversement = "bordereau_reversement"
+
+
 # ------------------------------------------------------------
 # Utilisateurs
 # ------------------------------------------------------------
@@ -520,3 +528,24 @@ class JournalAudit(Base):
     date_action: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     ancienne_valeur: Mapped[dict | None] = mapped_column(JSONB)
     nouvelle_valeur: Mapped[dict | None] = mapped_column(JSONB)
+
+
+# ============================================================
+# Archivage des éditions PDF (RF-POL-04)
+# ============================================================
+
+class DocumentArchive(Base):
+    """Trace d'un document PDF généré côté serveur et archivé horodaté (RF-POL-04).
+    Le fichier est écrit dans le répertoire d'archives ; cette table conserve la trace de
+    chaque génération (type, entité source, numéro métier, chemin, auteur, date)."""
+    __tablename__ = "document_archive"
+    __table_args__ = (Index("idx_document_archive_cible", "type_document", "entite_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    type_document: Mapped[TypeDocument] = mapped_column(PgEnum(TypeDocument, name="type_document"))
+    entite_id: Mapped[int]  # id de l'entité source (quittance, police, bordereau…)
+    numero: Mapped[str | None] = mapped_column(String(50))  # numéro métier repris sur le document
+    nom_fichier: Mapped[str] = mapped_column(String(255))
+    chemin_fichier: Mapped[str] = mapped_column(Text)
+    genere_par: Mapped[int | None] = mapped_column(ForeignKey("utilisateur.id"))
+    date_generation: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

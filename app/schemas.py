@@ -12,7 +12,7 @@ from app.models import (
     TypeClient, StatutClient, RoleUtilisateur, StatutPolice, TypeAvenant,
     StatutAvenant, StatutQuittance, ModePaiement, StatutEncaissement,
     StatutBordereauVersement, StatutBordereauReversement,
-    StatutDossierRecouv, TypeRelance,
+    StatutDossierRecouv, TypeRelance, TypeDocument,
 )
 
 
@@ -546,6 +546,22 @@ class JournalAuditRead(ORMBase):
     date_action: datetime
     ancienne_valeur: dict | None
     nouvelle_valeur: dict | None
+
+
+# ============================================================
+# Archivage des éditions PDF (RF-POL-04)
+# ============================================================
+
+class DocumentArchiveRead(ORMBase):
+    # chemin_fichier volontairement ABSENT de la sortie : le chemin disque du serveur ne doit
+    # pas fuiter côté client. Le re-téléchargement passe par /documents/archives/{id}/telecharger.
+    id: int
+    type_document: TypeDocument
+    entite_id: int
+    numero: str | None
+    nom_fichier: str
+    genere_par: int | None
+    date_generation: datetime
 
 
 # ============================================================

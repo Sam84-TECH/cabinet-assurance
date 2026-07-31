@@ -161,3 +161,25 @@ def test_recette_bout_en_bout(client, auth, refs):
     assert tableau["paiements_en_attente"] == 0, tableau          # la seule quittance est réglée
     assert tableau["cheques_non_encaisses"] == 0, tableau         # le chèque est rapproché banque
     assert tableau["dossiers_recouvrement_ouverts"] == 0, tableau
+
+    # 17. Éditions PDF (RF-POL-04) : génération côté serveur + archivage horodaté
+    documents = [
+        ("quittances", quittance_id),
+        ("attestations", police_id),
+        ("polices", police_id),
+        ("bordereaux-versement", bordereau_versement_id),
+        ("bordereaux-reversement", bordereau_reversement_id),
+    ]
+    for chemin, entite_id in documents:
+        reponse = client.get(f"/documents/{chemin}/{entite_id}", headers=auth)
+        assert reponse.status_code == 200, (chemin, reponse.text)
+        assert reponse.headers["content-type"] == "application/pdf", (chemin, reponse.headers)
+        assert reponse.content[:5] == b"%PDF-", chemin  # en-tête d'un PDF valide
+
+    # Les 5 générations ont laissé une trace d'archive horodatée, re-téléchargeable
+    reponse = client.get("/documents/archives", headers=auth)
+    assert reponse.status_code == 200, reponse.text
+    archives = reponse.json()
+    assert len(archives) == 5, archives
+    reponse = client.get(f"/documents/archives/{archives[0]['id']}/telecharger", headers=auth)
+    assert reponse.status_code == 200 and reponse.content[:5] == b"%PDF-", reponse.status_code
