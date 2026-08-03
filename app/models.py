@@ -318,6 +318,9 @@ class PoliceGarantie(Base):
     police_id: Mapped[int] = mapped_column(ForeignKey("police.id"))
     risque_id: Mapped[int | None] = mapped_column(ForeignKey("risque.id"))
     garantie_id: Mapped[int] = mapped_column(ForeignKey("garantie.id"))
+    # Capital assuré, base de la tarification proportionnelle (mode « taux »). Nullable :
+    # inutile pour une garantie au forfait. Voir app/tarification.py (RF-SOUS-02).
+    capital_assure: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     montant_prime: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
 
 

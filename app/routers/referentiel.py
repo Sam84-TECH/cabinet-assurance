@@ -4,12 +4,13 @@ C'est le catalogue produit générique/paramétrable (principe clé du CDCF :
 ajouter un produit ou une garantie ne demande aucun code, juste des données).
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
 from ..database import get_db
 from ..auth import get_current_user
+from ..tarification import valider_parametres_tarification
 
 router = APIRouter(prefix="/referentiel", tags=["Référentiel"])
 
@@ -55,6 +56,14 @@ def get_produit(produit_id: int, db: Session = Depends(get_db)):
 @router.post("/garanties", response_model=schemas.GarantieRead)
 def create_garantie(payload: schemas.GarantieCreate, db: Session = Depends(get_db),
                      user: models.Utilisateur = Depends(get_current_user)):
+    """Crée une garantie du catalogue produit. Si `parametres` déclare une règle de tarification
+    (clé "mode"), elle est validée dès la création (RF-SOUS-02) : un barème mal formé est refusé
+    (400) à la source, au lieu de n'échouer qu'au premier calcul de prime."""
+    if "mode" in payload.parametres:
+        try:
+            valider_parametres_tarification(payload.parametres)
+        except ValueError as erreur:
+            raise HTTPException(400, str(erreur))
     return crud.create(db, models.Garantie, payload.model_dump())
 
 

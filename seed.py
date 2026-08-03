@@ -37,16 +37,17 @@ from app import models                 # noqa: E402
 # Données de référence (paramétrage de départ)
 # ------------------------------------------------------------------
 
-# Garanties habituelles d'un contrat auto au Maroc. Le détail paramétrable
-# éventuel va dans `parametres` (JSONB) pour rester générique.
+# Garanties habituelles d'un contrat auto au Maroc. Le détail paramétrable va dans
+# `parametres` (JSONB) pour rester générique : "obligatoire" + la règle de tarification
+# (RF-SOUS-02, cf. app/tarification.py) en mode "taux" (% du capital assuré) ou "forfait".
 GARANTIES_AUTO = [
-    ("RC",  "Responsabilité civile",   {"obligatoire": True}),
-    ("DC",  "Dommages collision",      {"obligatoire": False}),
-    ("VOL", "Vol",                     {"obligatoire": False}),
-    ("INC", "Incendie",                {"obligatoire": False}),
-    ("BDG", "Bris de glace",           {"obligatoire": False}),
-    ("PT",  "Personnes transportées",  {"obligatoire": False}),
-    ("DR",  "Défense et recours",      {"obligatoire": False}),
+    ("RC",  "Responsabilité civile",   {"obligatoire": True,  "mode": "forfait", "montant_forfait": "1500.00"}),
+    ("DC",  "Dommages collision",      {"obligatoire": False, "mode": "taux",    "taux": "2.5"}),
+    ("VOL", "Vol",                     {"obligatoire": False, "mode": "taux",    "taux": "1.5"}),
+    ("INC", "Incendie",                {"obligatoire": False, "mode": "taux",    "taux": "0.8"}),
+    ("BDG", "Bris de glace",           {"obligatoire": False, "mode": "forfait", "montant_forfait": "220.00"}),
+    ("PT",  "Personnes transportées",  {"obligatoire": False, "mode": "forfait", "montant_forfait": "150.00"}),
+    ("DR",  "Défense et recours",      {"obligatoire": False, "mode": "forfait", "montant_forfait": "80.00"}),
 ]
 
 # Pièces justificatives exigées pour une souscription auto.

@@ -7,7 +7,7 @@ incluant l'id généré) par entité.
 import re
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import (
     TypeClient, StatutClient, RoleUtilisateur, StatutPolice, TypeAvenant,
@@ -318,7 +318,10 @@ class PoliceGarantieCreate(BaseModel):
     police_id: int
     risque_id: int | None = None
     garantie_id: int
-    montant_prime: Decimal | None = None
+    capital_assure: Decimal | None = Field(default=None, ge=0)
+    # montant_prime facultatif : s'il est omis, il est calculé côté serveur à partir de la règle
+    # de tarification du produit (Garantie.parametres) et du capital_assure (RF-SOUS-02).
+    montant_prime: Decimal | None = Field(default=None, ge=0)
 
 
 class PoliceGarantieRead(ORMBase):
@@ -326,6 +329,7 @@ class PoliceGarantieRead(ORMBase):
     police_id: int
     risque_id: int | None
     garantie_id: int
+    capital_assure: Decimal | None
     montant_prime: Decimal | None
 
 

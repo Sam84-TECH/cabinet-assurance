@@ -99,6 +99,21 @@ def test_recette_bout_en_bout(client, auth, refs):
     assert dec(quittance["commission"]) == Decimal("100.00")  # 10 % (barème Sanlam/Auto)
     assert quittance["statut"] == "emise"
 
+    # 8b. Tarification automatique par garantie (RF-SOUS-02) : montant_prime omis -> calculé au
+    # barème du produit. Ajouté APRÈS la quittance pour ne pas modifier ses montants.
+    reponse = client.post("/police-garanties", headers=auth, json={  # mode taux : 1,5 % de 150 000
+        "police_id": police_id, "risque_id": risque_id,
+        "garantie_id": refs["garanties"]["VOL"], "capital_assure": "150000.00",
+    })
+    assert reponse.status_code == 200, reponse.text
+    assert dec(reponse.json()["montant_prime"]) == Decimal("2250.00"), reponse.json()
+
+    reponse = client.post("/police-garanties", headers=auth, json={  # mode forfait : 220,00
+        "police_id": police_id, "risque_id": risque_id, "garantie_id": refs["garanties"]["BDG"],
+    })
+    assert reponse.status_code == 200, reponse.text
+    assert dec(reponse.json()["montant_prime"]) == Decimal("220.00"), reponse.json()
+
     # 9. Encaissement par chèque du montant TTC
     reponse = client.post("/encaissements", headers=auth, json={
         "client_id": client_id, "mode_paiement": "cheque", "montant": "1140.00",
