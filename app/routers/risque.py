@@ -31,7 +31,7 @@ def get_risque(risque_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{risque_id}", response_model=schemas.RisqueRead)
-def update_risque(risque_id: int, payload: schemas.RisqueCreate, db: Session = Depends(get_db),
+def update_risque(risque_id: int, payload: schemas.RisqueUpdate, db: Session = Depends(get_db),
                   user: models.Utilisateur = Depends(get_current_user)):
     return crud.update(db, models.Risque, risque_id, payload.model_dump(exclude_unset=True))
 

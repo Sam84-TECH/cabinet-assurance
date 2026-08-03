@@ -42,7 +42,10 @@ def test_recette_bout_en_bout(client, auth, refs):
     # 3. Véhicule (risque) rattaché à la police
     reponse = client.post("/risques", headers=auth, json={
         "police_id": police_id, "type_risque": "vehicule",
-        "attributs": {"immatriculation": "12345-A-6", "marque": "Dacia", "modele": "Logan"},
+        "attributs": {
+            "immatriculation": "12345-A-6", "marque": "Dacia", "modele": "Logan",
+            "date_mise_en_circulation": "03/2021", "valeur_neuf": "150000.00",
+        },
     })
     assert reponse.status_code == 200, reponse.text
     risque_id = reponse.json()["id"]

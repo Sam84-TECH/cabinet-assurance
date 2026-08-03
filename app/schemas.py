@@ -4,9 +4,10 @@ Un schéma "Create" (ce qu'on envoie pour créer) et un schéma "Read" (ce que l
 incluant l'id généré) par entité.
 """
 
+import re
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from app.models import (
     TypeClient, StatutClient, RoleUtilisateur, StatutPolice, TypeAvenant,
@@ -211,10 +212,78 @@ class PoliceRead(ORMBase):
     date_creation: datetime
 
 
+class VehiculeAttributs(BaseModel):
+    """Attributs d'un risque de type « vehicule » (contenu du JSONB `Risque.attributs`).
+    `extra="allow"` conserve d'éventuels attributs supplémentaires paramétrés sans les rejeter —
+    le modèle reste générique, tout en imposant les champs indispensables à un véhicule assuré."""
+    model_config = ConfigDict(extra="allow")
+
+    # --- Champs obligatoires ---
+    immatriculation: str
+    marque: str
+    modele: str
+    date_mise_en_circulation: str  # format "MM/AAAA"
+    valeur_neuf: Decimal
+
+    # --- Champs optionnels ---
+    type_version: str | None = None
+    numero_chassis: str | None = None
+    numero_moteur: str | None = None
+    genre_carrosserie: str | None = None
+    puissance_fiscale: int | None = None
+    usage: str | None = None
+    nombre_places: int | None = None
+    conducteur_habituel: str | None = None
+    valeur_venale: Decimal | None = None
+
+    @field_validator("date_mise_en_circulation")
+    @classmethod
+    def _valider_mois_annee(cls, valeur):
+        if valeur is not None and not re.fullmatch(r"(0[1-9]|1[0-2])/\d{4}", valeur):
+            raise ValueError("date_mise_en_circulation doit être au format MM/AAAA (ex. « 03/2021 »).")
+        return valeur
+
+
+class VehiculeAttributsPartiel(VehiculeAttributs):
+    """Version partielle pour le PATCH : aucun champ n'est obligatoire — on ne valide QUE le type
+    des champs réellement fournis (les 5 champs obligatoires de VehiculeAttributs sont redéclarés
+    optionnels ici), pour pouvoir modifier un seul attribut sans devoir tout renvoyer."""
+    immatriculation: str | None = None
+    marque: str | None = None
+    modele: str | None = None
+    date_mise_en_circulation: str | None = None
+    valeur_neuf: Decimal | None = None
+
+
 class RisqueCreate(BaseModel):
     police_id: int
     type_risque: str = "vehicule"
     attributs: dict = {}
+
+    @model_validator(mode="after")
+    def _valider_attributs_vehicule(self):
+        """Un risque « vehicule » doit décrire un véhicule complet : `attributs` est validé contre
+        VehiculeAttributs (champs obligatoires + types), puis réassigné sous sa forme normalisée et
+        sérialisable JSON (stockage JSONB)."""
+        if self.type_risque == "vehicule":
+            valide = VehiculeAttributs(**self.attributs)
+            self.attributs = valide.model_dump(mode="json", exclude_none=True)
+        return self
+
+
+class RisqueUpdate(BaseModel):
+    """Mise à jour partielle d'un risque (PATCH) : tous les champs sont facultatifs. Si `attributs`
+    est fourni, on ne valide QUE le type des champs présents (pas leur présence complète)."""
+    police_id: int | None = None
+    type_risque: str | None = None
+    attributs: dict | None = None
+
+    @model_validator(mode="after")
+    def _valider_types_attributs(self):
+        if self.attributs is not None:
+            valide = VehiculeAttributsPartiel(**self.attributs)
+            self.attributs = valide.model_dump(mode="json", exclude_unset=True)
+        return self
 
 
 class RisqueRead(ORMBase):
