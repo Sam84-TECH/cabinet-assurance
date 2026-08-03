@@ -138,7 +138,7 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 ### 4. Éditions et livraison
 - [ ] Génération PDF : quittance, police, attestation, bordereau de versement, bordereau de reversement
 - [ ] Exports Excel des rapports
-- [ ] Scénario de recette bout en bout (voir ci-dessous)
+- [x] Scénario de recette bout en bout (voir ci-dessous)
 - [ ] Tests pytest, Dockerfile + docker-compose, README
 - [ ] `.gitignore` (au minimum `venv/`, `.env`, `__pycache__/`)
 
