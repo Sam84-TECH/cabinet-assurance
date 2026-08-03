@@ -39,15 +39,18 @@ from app import models                 # noqa: E402
 
 # Garanties habituelles d'un contrat auto au Maroc. Le détail paramétrable va dans
 # `parametres` (JSONB) pour rester générique : "obligatoire" + la règle de tarification
-# (RF-SOUS-02, cf. app/tarification.py) en mode "taux" (% du capital assuré) ou "forfait".
+# (RF-SOUS-02, cf. app/tarification.py) en mode "taux" (% du capital assuré) ou "forfait"
+# (montant fixe). Taux/forfaits indicatifs, à caler sur le vrai barème de la compagnie.
 GARANTIES_AUTO = [
-    ("RC",  "Responsabilité civile",   {"obligatoire": True,  "mode": "forfait", "montant_forfait": "1500.00"}),
-    ("DC",  "Dommages collision",      {"obligatoire": False, "mode": "taux",    "taux": "2.5"}),
-    ("VOL", "Vol",                     {"obligatoire": False, "mode": "taux",    "taux": "1.5"}),
-    ("INC", "Incendie",                {"obligatoire": False, "mode": "taux",    "taux": "0.8"}),
-    ("BDG", "Bris de glace",           {"obligatoire": False, "mode": "forfait", "montant_forfait": "220.00"}),
-    ("PT",  "Personnes transportées",  {"obligatoire": False, "mode": "forfait", "montant_forfait": "150.00"}),
-    ("DR",  "Défense et recours",      {"obligatoire": False, "mode": "forfait", "montant_forfait": "80.00"}),
+    ("RC",     "Responsabilité civile",  {"obligatoire": True,  "mode": "taux",    "taux": "1.20"}),
+    ("DC",     "Dommages collision",     {"obligatoire": False, "mode": "taux",    "taux": "2.50"}),
+    ("VOL",    "Vol",                    {"obligatoire": False, "mode": "taux",    "taux": "1.50"}),
+    ("INC",    "Incendie",               {"obligatoire": False, "mode": "taux",    "taux": "0.80"}),
+    ("BDG",    "Bris de glace",          {"obligatoire": False, "mode": "forfait", "montant_forfait": "220.00"}),
+    ("PT",     "Personnes transportées", {"obligatoire": False, "mode": "forfait", "montant_forfait": "150.00"}),
+    ("DR",     "Défense et recours",     {"obligatoire": False, "mode": "forfait", "montant_forfait": "80.00"}),
+    ("ASSIST", "Assistance",             {"obligatoire": False, "mode": "forfait", "montant_forfait": "300.00"}),
+    ("CV",     "Carte verte",            {"obligatoire": False, "mode": "forfait", "montant_forfait": "100.00"}),
 ]
 
 # Pièces justificatives exigées pour une souscription auto.
@@ -106,12 +109,21 @@ def seed(db):
     )
     faits.append(cree)
 
-    # 4. Garanties du produit Auto — clé naturelle : produit_id + code
+    # 4. Garanties du produit Auto — clé naturelle : produit_id + code.
+    # Idempotent AVEC rattrapage : les barèmes de tarification (RF-SOUS-02) ont été introduits
+    # après le premier seed. Une garantie déjà en base mais dont les `parametres` n'ont pas encore
+    # de règle de tarification (clé "mode") est complétée avec son barème — sans toucher aux autres
+    # clés ni écraser un mode déjà défini par l'agence.
+    maj_tarification = 0
     for code, libelle, params in GARANTIES_AUTO:
-        _, cree = get_or_create(
+        garantie, cree = get_or_create(
             db, models.Garantie, produit_id=auto.id, code=code,
             defaults={"nom": libelle, "parametres": params},
         )
+        if not cree and "mode" not in (garantie.parametres or {}):
+            tarif = {c: v for c, v in params.items() if c in ("mode", "taux", "montant_forfait")}
+            garantie.parametres = {**(garantie.parametres or {}), **tarif}  # nouveau dict -> changement détecté
+            maj_tarification += 1
         faits.append(cree)
 
     # 5. Barème de commission Sanlam / Auto — clé naturelle : compagnie_id + produit_id
@@ -137,15 +149,20 @@ def seed(db):
 
     crees = sum(faits)
     existants = len(faits) - crees
-    print("── Seed du cabinet — Sanlam Maroc ─────────────────────────")
+    # Décorations en ASCII pur : la console Windows (cp1252) ne sait pas encoder les caractères
+    # de filet « ─ », le tiret cadratin « — » ni la flèche « → » (les lettres accentuées, elles,
+    # existent en cp1252 et s'affichent correctement).
+    print("=== Seed du cabinet - Sanlam Maroc " + "=" * 25)
     print(f"  Compagnie    : {sanlam.nom} [{sanlam.code}] (id={sanlam.id})")
     print(f"  Produit      : {auto.nom} [{auto.code}] (id={auto.id})")
     print(f"  Garanties    : {len(GARANTIES_AUTO)}")
     print(f"  Banques      : {len(BANQUES_AGENCE)}")
     print(f"  Pièces just. : {len(PIECES_AUTO)}")
     print(f"  Barème       : {TAUX_COMMISSION_AUTO} % (Sanlam / Auto, depuis {DATE_DEBUT_BAREME})")
-    print("───────────────────────────────────────────────────────────")
-    print(f"→ {crees} objet(s) créé(s), {existants} déjà présent(s) — aucun doublon.")
+    print("=" * 60)
+    print(f"-> {crees} objet(s) créé(s), {existants} déjà présent(s), aucun doublon.")
+    if maj_tarification:
+        print(f"-> {maj_tarification} garantie(s) existante(s) complétée(s) avec leur barème de tarification.")
 
 
 def main():
