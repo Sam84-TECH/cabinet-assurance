@@ -23,8 +23,15 @@ def create_police_garantie(payload: schemas.PoliceGarantieCreate, db: Session = 
     data = payload.model_dump()
     if data.get("montant_prime") is None:
         garantie = crud.get_or_404(db, models.Garantie, data["garantie_id"])
+        # La puissance fiscale (barème RC) est un attribut du véhicule : on la lit sur le risque.
+        puissance = None
+        if data.get("risque_id") is not None:
+            risque = db.get(models.Risque, data["risque_id"])
+            brut = (risque.attributs or {}).get("puissance_fiscale") if risque else None
+            puissance = int(brut) if brut is not None else None
         try:
-            data["montant_prime"] = calculer_prime_garantie(garantie.parametres, data.get("capital_assure"))
+            data["montant_prime"] = calculer_prime_garantie(
+                garantie.parametres, data.get("capital_assure"), puissance)
         except ValueError as erreur:
             raise HTTPException(400, str(erreur))
     return crud.create(db, models.PoliceGarantie, data)

@@ -12,9 +12,18 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..auth import hacher_mot_de_passe, verifier_mot_de_passe, creer_token, exiger_role
+from ..auth import (
+    hacher_mot_de_passe, verifier_mot_de_passe, creer_token, exiger_role, get_current_user,
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentification"])
+
+
+@router.get("/me", response_model=schemas.UtilisateurRead)
+def profil_courant(user: models.Utilisateur = Depends(get_current_user)):
+    """Profil de l'utilisateur connecté, déduit du jeton (id, nom, prénom, email, rôle, actif).
+    Le hash du mot de passe n'est jamais exposé (absent de UtilisateurRead)."""
+    return user
 
 
 @router.post("/login")

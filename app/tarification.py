@@ -3,11 +3,15 @@ Moteur de tarification par garantie (RF-SOUS-02 ; CDCF §3.2 « Règle de tarifi
 paramétrée par produit).
 
 La règle de tarification d'une garantie est portée par `Garantie.parametres` (JSONB déjà
-existant), selon deux modes :
+existant), selon trois modes :
 
-  - taux    : prime = capital assuré × taux %     ->  {"mode": "taux", "taux": "1.5"}
-  - forfait : prime = montant fixe                ->  {"mode": "forfait", "montant_forfait": "220.00"}
-              (ex. Assistance, Carte verte, Bris de glace)
+  - taux             : prime = capital assuré × taux %  -> {"mode": "taux", "taux": "1.5"}
+                       (ex. Dommages, Vol, Incendie : % de la valeur du véhicule)
+  - forfait          : prime = montant fixe             -> {"mode": "forfait", "montant_forfait": "220.00"}
+                       (ex. Assistance, Carte verte, Bris de glace)
+  - bareme_puissance : prime = tranche de puissance     -> {"mode": "bareme_puissance", "tranches": [
+                       fiscale du véhicule (ex. RC auto,      {"puissance_max": 7, "montant": "1700.00"}, …]}
+                       à capital illimité)
 
 `parametres` peut contenir d'autres clés (ex. "obligatoire") : elles sont conservées, seule
 la partie tarification est validée par les schémas ci-dessous.
@@ -33,9 +37,26 @@ class TarificationForfait(BaseModel):
     montant_forfait: Decimal = Field(ge=0)
 
 
+class TrancheBareme(BaseModel):
+    """Une tranche du barème par puissance fiscale : montant fixe jusqu'à `puissance_max` CV
+    (borne INCLUSE). `puissance_max = null` désigne la tranche « au-delà » (attrape-tout)."""
+    puissance_max: int | None = None
+    montant: Decimal = Field(ge=0)
+
+
+class TarificationBaremePuissance(BaseModel):
+    """Tarification par grille de puissance fiscale — cas de la Responsabilité civile auto, à
+    capital illimité (elle ne se tarifie pas en % d'un capital, mais par tranches de CV fiscaux).
+    La prime est le montant de la première tranche dont `puissance_max >= puissance du véhicule`."""
+    model_config = ConfigDict(extra="allow")
+    mode: Literal["bareme_puissance"]
+    tranches: list[TrancheBareme] = Field(min_length=1)
+
+
 # Union discriminée par le champ `mode` : documente la structure attendue de Garantie.parametres.
 ParametresTarification = Annotated[
-    Union[TarificationTaux, TarificationForfait], Field(discriminator="mode")
+    Union[TarificationTaux, TarificationForfait, TarificationBaremePuissance],
+    Field(discriminator="mode"),
 ]
 _ADAPTATEUR = TypeAdapter(ParametresTarification)
 
@@ -57,17 +78,38 @@ def _centimes(montant: Decimal) -> Decimal:
     return montant.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def calculer_prime_garantie(parametres: dict, capital_assure: Decimal | None) -> Decimal:
+def calculer_prime_garantie(parametres: dict, capital_assure: Decimal | None = None,
+                            puissance_fiscale: int | None = None) -> Decimal:
     """Prime d'une garantie selon sa règle de tarification (RF-SOUS-02) :
-      - mode « taux »    : capital assuré × taux / 100 (le capital est alors obligatoire) ;
-      - mode « forfait » : le montant forfaitaire (le capital est ignoré).
+      - mode « taux »              : capital assuré × taux / 100 (capital obligatoire) ;
+      - mode « forfait »           : le montant forfaitaire (capital et puissance ignorés) ;
+      - mode « bareme_puissance »  : montant de la tranche couvrant la puissance fiscale du
+                                     véhicule (cas de la RC auto, à capital illimité).
 
-    Lève `ValueError` si les paramètres sont mal formés, ou si le mode « taux » est demandé
-    sans capital assuré fourni.
+    Lève `ValueError` si les paramètres sont mal formés, ou si l'entrée requise par le mode
+    est absente (capital pour « taux », puissance fiscale pour « bareme_puissance »).
     """
     tarif = valider_parametres_tarification(parametres)
+
     if isinstance(tarif, TarificationForfait):
         return _centimes(tarif.montant_forfait)
+
+    if isinstance(tarif, TarificationBaremePuissance):
+        if puissance_fiscale is None:
+            raise ValueError(
+                "Le mode « bareme_puissance » exige la puissance fiscale du véhicule "
+                "(attribut puissance_fiscale du risque)."
+            )
+        if puissance_fiscale < 0:
+            raise ValueError("La puissance fiscale ne peut pas être négative.")
+        # Tranches triées par borne croissante, la tranche « au-delà » (puissance_max = None) en dernier.
+        for tranche in sorted(tarif.tranches, key=lambda t: (t.puissance_max is None, t.puissance_max or 0)):
+            if tranche.puissance_max is None or puissance_fiscale <= tranche.puissance_max:
+                return _centimes(tranche.montant)
+        raise ValueError(
+            f"Aucune tranche du barème ne couvre une puissance fiscale de {puissance_fiscale} CV."
+        )
+
     # mode « taux »
     if capital_assure is None:
         raise ValueError(

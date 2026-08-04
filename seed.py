@@ -37,12 +37,26 @@ from app import models                 # noqa: E402
 # Données de référence (paramétrage de départ)
 # ------------------------------------------------------------------
 
+# Barème RC par puissance fiscale (RF-SOUS-02, écart §24). La RC auto est à capital ILLIMITÉ :
+# elle ne se tarifie pas en % d'un capital, mais par tranches de puissance fiscale (CV).
+# /!\ VALEURS INDICATIVES, PROVISOIRES — à remplacer par le vrai barème réglementaire de la
+# compagnie dès qu'il sera fourni par l'encadrant (cf. QUESTIONS_ENCADRANT.md).
+BAREME_RC = {
+    "mode": "bareme_puissance",
+    "tranches": [
+        {"puissance_max": 4,    "montant": "1200.00"},   # jusqu'à 4 CV
+        {"puissance_max": 7,    "montant": "1700.00"},   # 5 à 7 CV
+        {"puissance_max": 10,   "montant": "2400.00"},   # 8 à 10 CV
+        {"puissance_max": None, "montant": "3200.00"},   # 11 CV et au-delà
+    ],
+}
+
 # Garanties habituelles d'un contrat auto au Maroc. Le détail paramétrable va dans
 # `parametres` (JSONB) pour rester générique : "obligatoire" + la règle de tarification
-# (RF-SOUS-02, cf. app/tarification.py) en mode "taux" (% du capital assuré) ou "forfait"
-# (montant fixe). Taux/forfaits indicatifs, à caler sur le vrai barème de la compagnie.
+# (RF-SOUS-02, cf. app/tarification.py). Taux/forfaits/tranches indicatifs, à caler sur le
+# vrai barème de la compagnie.
 GARANTIES_AUTO = [
-    ("RC",     "Responsabilité civile",  {"obligatoire": True,  "mode": "taux",    "taux": "1.20"}),
+    ("RC",     "Responsabilité civile",  {"obligatoire": True, **BAREME_RC}),  # barème par puissance (§24)
     ("DC",     "Dommages collision",     {"obligatoire": False, "mode": "taux",    "taux": "2.50"}),
     ("VOL",    "Vol",                    {"obligatoire": False, "mode": "taux",    "taux": "1.50"}),
     ("INC",    "Incendie",               {"obligatoire": False, "mode": "taux",    "taux": "0.80"}),
@@ -125,6 +139,16 @@ def seed(db):
             garantie.parametres = {**(garantie.parametres or {}), **tarif}  # nouveau dict -> changement détecté
             maj_tarification += 1
         faits.append(cree)
+
+    # Correction ciblée §24 : une RC déjà en base avait été paramétrée en mode "taux" (faux, la RC
+    # est à capital illimité). On la bascule vers son barème par puissance si ce n'est pas déjà fait,
+    # en retirant les anciennes clés de tarification et en conservant le reste (ex. "obligatoire").
+    rc = db.query(models.Garantie).filter_by(produit_id=auto.id, code="RC").first()
+    if rc is not None and (rc.parametres or {}).get("mode") != "bareme_puissance":
+        conserve = {c: v for c, v in (rc.parametres or {}).items()
+                    if c not in ("mode", "taux", "montant_forfait", "tranches")}
+        rc.parametres = {**conserve, **BAREME_RC}
+        maj_tarification += 1
 
     # 5. Barème de commission Sanlam / Auto — clé naturelle : compagnie_id + produit_id
     _, cree = get_or_create(

@@ -45,6 +45,7 @@ def test_recette_bout_en_bout(client, auth, refs):
         "attributs": {
             "immatriculation": "12345-A-6", "marque": "Dacia", "modele": "Logan",
             "date_mise_en_circulation": "03/2021", "valeur_neuf": "150000.00",
+            "puissance_fiscale": 8,  # pour la tarification RC par barème de puissance (§24)
         },
     })
     assert reponse.status_code == 200, reponse.text
@@ -113,6 +114,24 @@ def test_recette_bout_en_bout(client, auth, refs):
     })
     assert reponse.status_code == 200, reponse.text
     assert dec(reponse.json()["montant_prime"]) == Decimal("220.00"), reponse.json()
+
+    # mode bareme_puissance (RC auto, §24) : la prime vient de la tranche couvrant la puissance
+    # fiscale du véhicule (8 CV -> tranche <= 10 -> 2 400,00), sans capital assuré.
+    reponse = client.post("/referentiel/garanties", headers=auth, json={
+        "produit_id": refs["produit_id"], "code": "RC_TEST", "nom": "RC barème (test)",
+        "parametres": {"mode": "bareme_puissance", "tranches": [
+            {"puissance_max": 4, "montant": "1200.00"},
+            {"puissance_max": 10, "montant": "2400.00"},
+            {"puissance_max": None, "montant": "3200.00"},
+        ]},
+    })
+    assert reponse.status_code == 200, reponse.text
+    garantie_bareme_id = reponse.json()["id"]
+    reponse = client.post("/police-garanties", headers=auth, json={
+        "police_id": police_id, "risque_id": risque_id, "garantie_id": garantie_bareme_id,
+    })
+    assert reponse.status_code == 200, reponse.text
+    assert dec(reponse.json()["montant_prime"]) == Decimal("2400.00"), reponse.json()
 
     # 9. Encaissement par chèque du montant TTC
     reponse = client.post("/encaissements", headers=auth, json={
@@ -201,3 +220,11 @@ def test_recette_bout_en_bout(client, auth, refs):
     assert len(archives) == 5, archives
     reponse = client.get(f"/documents/archives/{archives[0]['id']}/telecharger", headers=auth)
     assert reponse.status_code == 200 and reponse.content[:5] == b"%PDF-", reponse.status_code
+
+    # 18. Profil de l'utilisateur connecté (GET /auth/me, écart §23)
+    reponse = client.get("/auth/me", headers=auth)
+    assert reponse.status_code == 200, reponse.text
+    profil = reponse.json()
+    assert profil["email"] == "admin@recette.test", profil
+    assert profil["role"] == "super_administrateur", profil
+    assert "mot_de_passe_hash" not in profil  # le hash ne fuit jamais

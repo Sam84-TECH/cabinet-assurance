@@ -58,6 +58,45 @@ def test_montants_negatifs_rejetes(parametres):
         calculer_prime_garantie(parametres, Decimal("1000"))
 
 
+# --- Mode « bareme_puissance » (RC auto, écart §24) ---
+
+BAREME_RC = {"mode": "bareme_puissance", "tranches": [
+    {"puissance_max": 4, "montant": "1200.00"},
+    {"puissance_max": 7, "montant": "1700.00"},
+    {"puissance_max": 10, "montant": "2400.00"},
+    {"puissance_max": None, "montant": "3200.00"},
+]}
+
+
+@pytest.mark.parametrize("puissance,attendu", [
+    (3, "1200.00"),    # première tranche
+    (4, "1200.00"),    # borne incluse
+    (6, "1700.00"),
+    (10, "2400.00"),   # borne incluse
+    (11, "3200.00"),   # tranche « au-delà » (null)
+    (25, "3200.00"),
+])
+def test_bareme_puissance(puissance, attendu):
+    assert calculer_prime_garantie(BAREME_RC, puissance_fiscale=puissance) == Decimal(attendu)
+
+
+def test_bareme_puissance_sans_puissance_leve_erreur():
+    with pytest.raises(ValueError, match="puissance"):
+        calculer_prime_garantie(BAREME_RC)
+
+
+def test_bareme_puissance_sans_tranche_couvrante():
+    # Pas de tranche « au-delà » (null) et puissance hors bornes -> erreur explicite.
+    bareme = {"mode": "bareme_puissance", "tranches": [{"puissance_max": 7, "montant": "1700.00"}]}
+    with pytest.raises(ValueError, match="couvre"):
+        calculer_prime_garantie(bareme, puissance_fiscale=12)
+
+
+def test_bareme_puissance_vide_rejete():
+    with pytest.raises(ValueError):
+        calculer_prime_garantie({"mode": "bareme_puissance", "tranches": []}, puissance_fiscale=6)
+
+
 @pytest.mark.parametrize("parametres", [
     {"taux": "1.5"},                      # mode absent
     {"mode": "taux"},                     # taux manquant
