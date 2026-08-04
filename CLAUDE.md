@@ -134,6 +134,8 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 - [x] Reversement : sélection automatique des quittances de la période, bordereau rectificatif
 - [x] Recouvrement : balance âgée 0-30 / 30-60 / 60-90 / 90+ jours, bascule automatique en recouvrement au dépassement du délai
 - [x] Router `LienFamilial` (gestion familiale)
+- [x] Tarification par garantie (RF-SOUS-02) : moteur `taux` / `forfait` / `bareme_puissance` — la RC auto (capital illimité, écart §24) est tarifée par tranches de puissance fiscale ; barème RC **provisoire**, cf. `QUESTIONS_ENCADRANT.md`
+- [x] `GET /auth/me` — profil de l'utilisateur connecté déduit du jeton (écart §23)
 
 ### 4. Éditions et livraison
 - [ ] Génération PDF : quittance, police, attestation, bordereau de versement, bordereau de reversement
