@@ -509,6 +509,20 @@ class BordereauReversementCreate(BaseModel):
     valide_par: int | None = None
 
 
+class ReversementCreate(BaseModel):
+    # id du bordereau dans l'URL. Reversement effectif à la compagnie (statut -> `reverse`).
+    reference_virement: str = Field(max_length=100)  # borné à la taille de la colonne (évite un 500)
+    date_reversement: date
+
+    @field_validator("reference_virement")
+    @classmethod
+    def _reference_non_vide(cls, valeur: str) -> str:
+        valeur = valeur.strip()
+        if not valeur:
+            raise ValueError("La référence de virement est obligatoire (texte non vide).")
+        return valeur
+
+
 class BordereauReversementRead(ORMBase):
     id: int
     numero_bordereau: str
@@ -522,6 +536,9 @@ class BordereauReversementRead(ORMBase):
     valide_par: int | None
     date_validation: datetime | None
     rectifie_bordereau_id: int | None  # bordereau original corrigé (règle 7), NULL si initial
+    reference_virement: str | None
+    date_reversement: date | None
+    reverse_par: int | None
 
 
 class BordereauReversementLigneCreate(BaseModel):

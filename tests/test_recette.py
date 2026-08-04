@@ -189,6 +189,25 @@ def test_recette_bout_en_bout(client, auth, refs):
     assert dec(bordereau_reversement["commission_totale"]) == Decimal("100.00"), bordereau_reversement
     assert dec(bordereau_reversement["montant_total"]) == Decimal("1000.00"), bordereau_reversement
 
+    # 15b. Reversement effectif (PATCH .../reverser, super admin, §18) : valide -> reverse
+    url_reverser = f"/rev/bordereaux/{bordereau_reversement_id}/reverser"
+    reponse = client.patch(url_reverser, headers=auth,  # référence vide -> 422
+                           json={"reference_virement": "   ", "date_reversement": AUJ.isoformat()})
+    assert reponse.status_code == 422, reponse.text
+    reponse = client.patch(url_reverser, headers=auth,  # référence trop longue -> 422 (pas de 500)
+                           json={"reference_virement": "X" * 101, "date_reversement": AUJ.isoformat()})
+    assert reponse.status_code == 422, reponse.text
+    reponse = client.patch(url_reverser, headers=auth,  # reversement effectif
+                           json={"reference_virement": "VIR-2026-0001", "date_reversement": AUJ.isoformat()})
+    assert reponse.status_code == 200, reponse.text
+    reverse = reponse.json()
+    assert reverse["statut"] == "reverse", reverse
+    assert reverse["reference_virement"] == "VIR-2026-0001"
+    assert reverse["date_reversement"] == AUJ.isoformat()
+    reponse = client.patch(url_reverser, headers=auth,  # déjà reversé (plus « valide ») -> 400
+                           json={"reference_virement": "VIR-2026-0002", "date_reversement": AUJ.isoformat()})
+    assert reponse.status_code == 400, reponse.text
+
     # 16. Tableau de bord cohérent (base isolée : seules nos données existent)
     reponse = client.get("/dashboard", headers=auth)
     assert reponse.status_code == 200, reponse.text

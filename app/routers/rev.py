@@ -214,6 +214,28 @@ def valider_bordereau(bordereau_id: int, db: Session = Depends(get_db),
     return bordereau
 
 
+@router.patch("/bordereaux/{bordereau_id}/reverser", response_model=schemas.BordereauReversementRead)
+def reverser_bordereau(bordereau_id: int, payload: schemas.ReversementCreate, db: Session = Depends(get_db),
+                       admin: models.Utilisateur = Depends(exiger_role("super_administrateur"))):
+    """
+    Marque le bordereau comme effectivement reversé à la compagnie (§18) : statut `valide` ->
+    `reverse`. Exige la référence du virement (texte non vide) et la date de reversement.
+    Réservé au Super Administrateur ; l'auteur est déduit du jeton. Seul un bordereau au statut
+    `valide` peut être reversé (la transition est tracée dans le journal d'audit).
+    """
+    bordereau = crud.get_or_404(db, models.BordereauReversement, bordereau_id)
+    if bordereau.statut != models.StatutBordereauReversement.valide:
+        raise HTTPException(400, "Seul un bordereau au statut « valide » peut être marqué comme reversé.")
+
+    bordereau.statut = models.StatutBordereauReversement.reverse
+    bordereau.reference_virement = payload.reference_virement
+    bordereau.date_reversement = payload.date_reversement
+    bordereau.reverse_par = admin.id
+    db.commit()
+    db.refresh(bordereau)
+    return bordereau
+
+
 @router.post("/bordereaux/{bordereau_id}/rectifier", response_model=schemas.BordereauReversementRead)
 def rectifier_bordereau(bordereau_id: int, db: Session = Depends(get_db),
                         user: models.Utilisateur = Depends(get_current_user)):

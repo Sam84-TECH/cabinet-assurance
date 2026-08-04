@@ -472,6 +472,11 @@ class BordereauReversement(Base):
     # (NULL pour un bordereau initial), pour garder le lien de correction en base.
     rectifie_bordereau_id: Mapped[int | None] = mapped_column(ForeignKey("bordereau_reversement.id"))
 
+    # Reversement effectif à la compagnie (statut `reverse`) : référence du virement, date, auteur.
+    reference_virement: Mapped[str | None] = mapped_column(String(100))
+    date_reversement: Mapped[date | None] = mapped_column(Date)
+    reverse_par: Mapped[int | None] = mapped_column(ForeignKey("utilisateur.id"))
+
 
 class BordereauReversementLigne(Base):
     __tablename__ = "bordereau_reversement_ligne"
