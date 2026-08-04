@@ -75,6 +75,7 @@ def create_bordereau(payload: schemas.BordereauReversementCreate, db: Session = 
                       user: models.Utilisateur = Depends(get_current_user)):
     data = payload.model_dump()
     data["numero_bordereau"] = generer_numero_bordereau_reversement(db)
+    data["statut"] = models.StatutBordereauReversement.brouillon  # forcé serveur (anti-contournement)
     return crud.create(db, models.BordereauReversement, data)
 
 

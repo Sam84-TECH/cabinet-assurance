@@ -154,8 +154,10 @@ def test_recette_bout_en_bout(client, auth, refs):
     # 12. Bordereau de versement, ajout de l'encaissement, validation (super admin)
     reponse = client.post("/banq/bordereaux", headers=auth, json={
         "banque_agence_id": refs["banque_id"], "date_bordereau": AUJ.isoformat(),
+        "statut": "verse",  # tentative de contournement : ignorée, forcé brouillon côté serveur
     })
     assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["statut"] == "brouillon", reponse.json()
     bordereau_versement_id = reponse.json()["id"]
     reponse = client.post(f"/banq/bordereaux/{bordereau_versement_id}/ajouter/{encaissement_id}", headers=auth)
     assert reponse.status_code == 200, reponse.text
@@ -172,8 +174,10 @@ def test_recette_bout_en_bout(client, auth, refs):
         "compagnie_id": refs["compagnie_id"],
         "periode_debut": (AUJ - datetime.timedelta(days=1)).isoformat(),
         "periode_fin": (AUJ + datetime.timedelta(days=1)).isoformat(),
+        "statut": "reverse", "valide_par": 999,  # tentative de contournement : ignorée côté serveur
     })
     assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["statut"] == "brouillon", reponse.json()
     bordereau_reversement_id = reponse.json()["id"]
 
     reponse = client.post(f"/rev/bordereaux/{bordereau_reversement_id}/selectionner-periode", headers=auth)

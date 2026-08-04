@@ -36,6 +36,7 @@ def create_bordereau(payload: schemas.BordereauVersementCreate, db: Session = De
                       user: models.Utilisateur = Depends(get_current_user)):
     data = payload.model_dump()
     data["numero_bordereau"] = generer_numero_bordereau_versement(db)
+    data["statut"] = models.StatutBordereauVersement.brouillon  # forcé serveur (anti-contournement)
     return crud.create(db, models.BordereauVersement, data)
 
 

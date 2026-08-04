@@ -466,10 +466,11 @@ class BanqueAgenceRead(ORMBase):
 
 
 class BordereauVersementCreate(BaseModel):
-    # numero_bordereau n'est PAS fourni par le client : généré automatiquement par le serveur
+    # numero_bordereau n'est PAS fourni par le client : généré automatiquement par le serveur.
+    # statut non exposé : un bordereau naît toujours en brouillon côté serveur, la validation
+    # (super admin) est le seul chemin vers `verse` (anti-contournement).
     banque_agence_id: int
     date_bordereau: date
-    statut: StatutBordereauVersement = StatutBordereauVersement.brouillon
 
 
 class BordereauVersementRead(ORMBase):
@@ -499,14 +500,14 @@ class BordereauVersementLigneRead(ORMBase):
 # ============================================================
 
 class BordereauReversementCreate(BaseModel):
-    # numero_bordereau n'est PAS fourni par le client : généré automatiquement par le serveur
+    # numero_bordereau n'est PAS fourni par le client : généré automatiquement par le serveur.
+    # statut et valide_par ne sont PAS exposés : un bordereau naît toujours en brouillon côté
+    # serveur, et la validation (super admin) est le seul chemin vers `valide` (anti-contournement).
     compagnie_id: int
     periode_debut: date
     periode_fin: date
     montant_total: Decimal = Decimal("0")
     commission_totale: Decimal = Decimal("0")
-    statut: StatutBordereauReversement = StatutBordereauReversement.brouillon
-    valide_par: int | None = None
 
 
 class ReversementCreate(BaseModel):
