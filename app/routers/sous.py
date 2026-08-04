@@ -25,6 +25,7 @@ def create_police(payload: schemas.PoliceCreate, db: Session = Depends(get_db),
                    user: models.Utilisateur = Depends(get_current_user)):
     data = payload.model_dump()
     data["numero_police"] = generer_numero_police(db)
+    data["statut"] = models.StatutPolice.en_attente_effet  # forcé serveur (anti-contournement)
     return crud.create(db, models.Police, data)
 
 
@@ -45,7 +46,9 @@ def get_police(police_id: int, db: Session = Depends(get_db)):
 @router.post("/avenants", response_model=schemas.AvenantRead)
 def create_avenant(payload: schemas.AvenantCreate, db: Session = Depends(get_db),
                     user: models.Utilisateur = Depends(get_current_user)):
-    return crud.create(db, models.Avenant, payload.model_dump())
+    data = payload.model_dump()
+    data["statut"] = models.StatutAvenant.brouillon  # forcé serveur : validation via PATCH .../valider
+    return crud.create(db, models.Avenant, data)
 
 
 @router.get("/avenants", response_model=list[schemas.AvenantRead])

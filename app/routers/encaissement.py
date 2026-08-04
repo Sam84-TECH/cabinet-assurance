@@ -22,6 +22,7 @@ def create_encaissement(payload: schemas.EncaissementCreate, db: Session = Depen
                          user: models.Utilisateur = Depends(get_current_user)):
     data = payload.model_dump()
     data["enregistre_par"] = user.id  # déduit automatiquement, plus besoin de le fournir
+    data["statut"] = models.StatutEncaissement.enregistre  # forcé serveur (anti-contournement)
     return crud.create(db, models.Encaissement, data)
 
 

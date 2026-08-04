@@ -193,10 +193,11 @@ class LienFamilialRead(ORMBase):
 # ============================================================
 
 class PoliceCreate(BaseModel):
-    # numero_police n'est PAS fourni par le client : généré automatiquement par le serveur
+    # numero_police et statut ne sont PAS fournis par le client : le numéro est généré par le
+    # serveur et la police naît toujours en `en_attente_effet` (la synchro fait évoluer le statut
+    # selon la date d'effet et les avenants validés). (Anti-contournement.)
     client_id: int
     produit_id: int
-    statut: StatutPolice = StatutPolice.en_attente_effet
     date_effet: date
     date_echeance: date
 
@@ -294,12 +295,13 @@ class RisqueRead(ORMBase):
 
 
 class AvenantCreate(BaseModel):
+    # statut et valide_par ne sont PAS exposés : un avenant naît toujours en brouillon côté
+    # serveur, et la validation (PATCH .../valider) est le seul chemin vers `valide` — c'est elle
+    # qui contrôle les pièces (RF-SOUS-04) et génère la quittance. (Anti-contournement.)
     police_id: int
     type_avenant: TypeAvenant
     motif: str | None = None
     date_effet: date
-    statut: StatutAvenant = StatutAvenant.brouillon
-    valide_par: int | None = None
 
 
 class AvenantRead(ORMBase):
@@ -375,11 +377,13 @@ class QuittanceRead(ORMBase):
 class EncaissementCreate(BaseModel):
     # enregistre_par n'est PAS fourni par le client : déduit automatiquement
     # de l'utilisateur connecté (jeton d'authentification)
+    # statut non exposé : un encaissement naît toujours `enregistre` ; il passe à
+    # `rapproche_banque` via la validation d'un bordereau de versement (super admin) ou à
+    # `rejete` via le rejet de chèque — jamais fixé par le client. (Anti-contournement.)
     client_id: int
     mode_paiement: ModePaiement
     montant: Decimal
     date_encaissement: date
-    statut: StatutEncaissement = StatutEncaissement.enregistre
     cheque_banque: str | None = None
     cheque_numero: str | None = None
     cheque_echeance: date | None = None
@@ -501,13 +505,12 @@ class BordereauVersementLigneRead(ORMBase):
 
 class BordereauReversementCreate(BaseModel):
     # numero_bordereau n'est PAS fourni par le client : généré automatiquement par le serveur.
-    # statut et valide_par ne sont PAS exposés : un bordereau naît toujours en brouillon côté
-    # serveur, et la validation (super admin) est le seul chemin vers `valide` (anti-contournement).
+    # statut, valide_par, montant_total et commission_totale ne sont PAS exposés : un bordereau naît
+    # en brouillon avec des totaux à 0, recalculés depuis les lignes à la validation (super admin,
+    # seul chemin vers `valide`). (Anti-contournement.)
     compagnie_id: int
     periode_debut: date
     periode_fin: date
-    montant_total: Decimal = Decimal("0")
-    commission_totale: Decimal = Decimal("0")
 
 
 class ReversementCreate(BaseModel):
@@ -562,8 +565,9 @@ class BordereauReversementLigneRead(ORMBase):
 # ============================================================
 
 class DossierRecouvrementCreate(BaseModel):
+    # statut non exposé : un dossier de recouvrement naît toujours `ouvert` ; ses transitions
+    # passent par PATCH .../statut. (Anti-contournement.)
     quittance_id: int
-    statut: StatutDossierRecouv = StatutDossierRecouv.ouvert
     date_ouverture: date | None = None
     date_cloture: date | None = None
 

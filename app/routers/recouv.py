@@ -40,7 +40,9 @@ def ouvrir_dossier(payload: schemas.DossierRecouvrementCreate, db: Session = Dep
     quittance = crud.get_or_404(db, models.Quittance, payload.quittance_id)
     if quittance.statut == models.StatutQuittance.reglee:
         raise HTTPException(400, "Cette quittance est déjà réglée, pas besoin de recouvrement.")
-    return crud.create(db, models.DossierRecouvrement, payload.model_dump())
+    data = payload.model_dump()
+    data["statut"] = models.StatutDossierRecouv.ouvert  # forcé serveur (anti-contournement)
+    return crud.create(db, models.DossierRecouvrement, data)
 
 
 @router.get("/dossiers", response_model=list[schemas.DossierRecouvrementRead])

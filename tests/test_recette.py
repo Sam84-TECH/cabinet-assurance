@@ -33,11 +33,13 @@ def test_recette_bout_en_bout(client, auth, refs):
     reponse = client.post("/sous/polices", headers=auth, json={
         "client_id": client_id, "produit_id": refs["produit_id"],
         "date_effet": AUJ.isoformat(), "date_echeance": DANS_UN_AN.isoformat(),
+        "statut": "en_vigueur",  # tentative de contournement : ignorée côté serveur
     })
     assert reponse.status_code == 200, reponse.text
     police = reponse.json()
     police_id = police["id"]
     assert police["numero_police"].startswith("POL-")
+    assert police["statut"] == "en_attente_effet", police  # statut forcé serveur
 
     # 3. Véhicule (risque) rattaché à la police
     reponse = client.post("/risques", headers=auth, json={
@@ -62,8 +64,10 @@ def test_recette_bout_en_bout(client, auth, refs):
     # 5. Avenant « affaire nouvelle »
     reponse = client.post("/sous/avenants", headers=auth, json={
         "police_id": police_id, "type_avenant": "affaire_nouvelle", "date_effet": AUJ.isoformat(),
+        "statut": "valide", "valide_par": 999,  # tentative de contournement : ignorée côté serveur
     })
     assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["statut"] == "brouillon", reponse.json()  # statut forcé serveur
     avenant_id = reponse.json()["id"]
 
     # 5b. RF-SOUS-04 : l'émission est bloquée tant que les pièces obligatoires manquent
@@ -138,8 +142,10 @@ def test_recette_bout_en_bout(client, auth, refs):
         "client_id": client_id, "mode_paiement": "cheque", "montant": "1140.00",
         "date_encaissement": AUJ.isoformat(),
         "cheque_banque": "Attijariwafa Bank", "cheque_numero": "REC-0001",
+        "statut": "rapproche_banque",  # tentative de contournement : ignorée côté serveur
     })
     assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["statut"] == "enregistre", reponse.json()  # statut forcé serveur
     encaissement_id = reponse.json()["id"]
 
     # 10. Affectation de l'encaissement à la quittance
