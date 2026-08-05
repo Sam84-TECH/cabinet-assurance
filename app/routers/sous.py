@@ -13,6 +13,7 @@ from ..database import get_db
 from ..numerotation import generer_numero_police
 from ..sync import synchroniser_statuts_polices
 from ..facturation import generer_quittance_pour_avenant
+from ..reglement import enrichir_quittance
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/sous", tags=["Souscription"])
@@ -69,7 +70,7 @@ def _pieces_obligatoires_manquantes(db: Session, police: models.Police) -> list[
     return [r.nom for r in requises if r.id not in fournies]
 
 
-@router.patch("/avenants/{avenant_id}/valider", response_model=schemas.AvenantRead)
+@router.patch("/avenants/{avenant_id}/valider", response_model=schemas.AvenantValideRead)
 def valider_avenant(avenant_id: int, db: Session = Depends(get_db),
                      user: models.Utilisateur = Depends(get_current_user)):
     """Valide un avenant brouillon (règle CDCF : un avenant doit être validé pour prendre
@@ -77,7 +78,8 @@ def valider_avenant(avenant_id: int, db: Session = Depends(get_db),
     ou de suspension bascule la police en 'resilie' / 'suspendu' — immédiatement si sa date
     d'effet est atteinte, sinon à cette date. Génère aussi automatiquement la quittance à
     partir des garanties de la police (RF-SOUS-07), après avoir vérifié que les pièces
-    justificatives obligatoires sont fournies (RF-SOUS-04). L'auteur vient du jeton de connexion."""
+    justificatives obligatoires sont fournies (RF-SOUS-04). L'auteur vient du jeton de connexion.
+    Renvoie l'avenant validé ET la quittance générée (écart §26 : évite un GET séparé)."""
     avenant = crud.get_or_404(db, models.Avenant, avenant_id)
     if avenant.statut != models.StatutAvenant.brouillon:
         raise HTTPException(400, "Seul un avenant en brouillon peut être validé.")
@@ -92,7 +94,7 @@ def valider_avenant(avenant_id: int, db: Session = Depends(get_db),
     avenant.statut = models.StatutAvenant.valide
     avenant.valide_par = user.id
     avenant.date_validation = datetime.now()
-    generer_quittance_pour_avenant(db, avenant)  # RF-SOUS-07 : quittance auto depuis les garanties
+    quittance = generer_quittance_pour_avenant(db, avenant)  # RF-SOUS-07 : quittance auto
     try:
         db.commit()
     except IntegrityError:
@@ -102,7 +104,15 @@ def valider_avenant(avenant_id: int, db: Session = Depends(get_db),
         raise HTTPException(409, "Cet avenant vient d'être validé par une autre opération.")
     synchroniser_statuts_polices(db)  # applique l'effet sur le statut de la police
     db.refresh(avenant)
-    return avenant
+
+    quittance_read = None
+    if quittance is not None:
+        db.refresh(quittance)
+        quittance_read = schemas.QuittanceRead.model_validate(enrichir_quittance(db, quittance))
+    return schemas.AvenantValideRead(
+        **schemas.AvenantRead.model_validate(avenant).model_dump(),
+        quittance=quittance_read,
+    )
 
 
 def _plus_un_an(d: date) -> date:

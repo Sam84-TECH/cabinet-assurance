@@ -150,6 +150,49 @@ class ClientCreate(BaseModel):
     banque_principale: str | None = None
     rib: str | None = None
 
+    @model_validator(mode="after")
+    def _valider_identite(self):
+        """Identité obligatoire selon le type (RF-CRM, écart §25) : un particulier doit avoir
+        CIN + nom + prénom, une entreprise raison sociale + ICE. Donne un 422 explicite plutôt
+        que de laisser la contrainte CHECK de la base remonter un 400 technique."""
+        def _absents(champs):
+            return [nom for nom, valeur in champs if not (valeur and valeur.strip())]
+
+        if self.type == TypeClient.particulier:
+            manquants = _absents([("cin", self.cin), ("nom", self.nom), ("prenom", self.prenom)])
+            if manquants:
+                raise ValueError("Un particulier doit renseigner : " + ", ".join(manquants) + ".")
+        elif self.type == TypeClient.entreprise:
+            manquants = _absents([("raison_sociale", self.raison_sociale), ("ice", self.ice)])
+            if manquants:
+                raise ValueError("Une entreprise doit renseigner : " + ", ".join(manquants) + ".")
+        return self
+
+
+class ClientUpdate(BaseModel):
+    """Mise à jour partielle d'un client (PATCH) : tous les champs sont facultatifs, l'identité
+    déjà en base n'a pas à être renvoyée. La cohérence identité/type reste garantie en base par
+    les contraintes CHECK (backstop si un PATCH rend la ligne incohérente)."""
+    type: TypeClient | None = None
+    telephone: str | None = None
+    email: str | None = None
+    adresse: str | None = None
+    ville: str | None = None
+    pays: str | None = None
+    statut: StatutClient | None = None
+    charge_de_compte_id: int | None = None
+    cin: str | None = None
+    nom: str | None = None
+    prenom: str | None = None
+    date_naissance: date | None = None
+    sexe: str | None = None
+    profession: str | None = None
+    raison_sociale: str | None = None
+    ice: str | None = None
+    responsable: str | None = None
+    banque_principale: str | None = None
+    rib: str | None = None
+
 
 class ClientRead(ORMBase):
     id: int
@@ -368,6 +411,17 @@ class QuittanceRead(ORMBase):
     prime_ttc: Decimal
     statut: StatutQuittance
     date_creation: datetime
+    # Montant réglé effectif (hors chèques rejetés) et reste dû réel (écart §27). Calculés à la
+    # lecture (get/list quittances, réponse de validation d'avenant) ; None si non enrichi.
+    montant_regle: Decimal | None = None
+    reste_du: Decimal | None = None
+
+
+class AvenantValideRead(AvenantRead):
+    """Réponse de la validation d'un avenant (écart §26) : les champs de l'avenant validé + la
+    quittance générée automatiquement (RF-SOUS-07), pour éviter au frontend un GET séparé.
+    `quittance` vaut None si le type d'avenant n'en génère pas (modification, suspension…)."""
+    quittance: QuittanceRead | None = None
 
 
 # ============================================================
@@ -558,6 +612,19 @@ class BordereauReversementLigneRead(ORMBase):
     quittance_id: int
     prime_nette_reversee: Decimal
     commission_calculee: Decimal
+
+
+class BordereauReversementLigneDetailRead(BordereauReversementLigneRead):
+    """Ligne enrichie (écart §28) : ajoute le numéro de quittance et le numéro de police,
+    pour que le détail du bordereau soit lisible sans jointure côté frontend."""
+    numero_quittance: str | None = None
+    numero_police: str | None = None
+
+
+class BordereauReversementDetailRead(BordereauReversementRead):
+    """Détail d'un bordereau de reversement (écart §28) : le bordereau + ses lignes enrichies,
+    renvoyé par GET /rev/bordereaux/{id}."""
+    lignes: list[BordereauReversementLigneDetailRead]
 
 
 # ============================================================

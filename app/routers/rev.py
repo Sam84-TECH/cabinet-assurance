@@ -84,9 +84,28 @@ def list_bordereaux(compagnie_id: int | None = None, skip: int = 0, limit: int =
     return crud.list_all(db, models.BordereauReversement, skip, limit, compagnie_id=compagnie_id)
 
 
-@router.get("/bordereaux/{bordereau_id}", response_model=schemas.BordereauReversementRead)
+@router.get("/bordereaux/{bordereau_id}", response_model=schemas.BordereauReversementDetailRead)
 def get_bordereau(bordereau_id: int, db: Session = Depends(get_db)):
-    return crud.get_or_404(db, models.BordereauReversement, bordereau_id)
+    """Détail du bordereau + ses lignes enrichies du numéro de quittance et du numéro de police
+    (écart §28 : les lignes sont désormais incluses dans le GET de détail, avec les libellés)."""
+    bordereau = crud.get_or_404(db, models.BordereauReversement, bordereau_id)
+    lignes = []
+    for ligne in db.query(models.BordereauReversementLigne).filter_by(bordereau_reversement_id=bordereau_id):
+        quittance = db.get(models.Quittance, ligne.quittance_id)
+        police = db.get(models.Police, quittance.police_id) if quittance else None
+        lignes.append(schemas.BordereauReversementLigneDetailRead(
+            id=ligne.id,
+            bordereau_reversement_id=ligne.bordereau_reversement_id,
+            quittance_id=ligne.quittance_id,
+            numero_quittance=quittance.numero_quittance if quittance else None,
+            numero_police=police.numero_police if police else None,
+            prime_nette_reversee=ligne.prime_nette_reversee,
+            commission_calculee=ligne.commission_calculee,
+        ))
+    return schemas.BordereauReversementDetailRead(
+        **schemas.BordereauReversementRead.model_validate(bordereau).model_dump(),
+        lignes=lignes,
+    )
 
 
 @router.post("/bordereaux/{bordereau_id}/ajouter/{quittance_id}",

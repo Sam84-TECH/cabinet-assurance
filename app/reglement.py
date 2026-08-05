@@ -51,3 +51,13 @@ def recalculer_statut_quittance(db: Session, quittance: models.Quittance) -> Non
         quittance.statut = models.StatutQuittance.reglee_partiellement
     else:
         quittance.statut = models.StatutQuittance.emise
+
+
+def enrichir_quittance(db: Session, quittance: models.Quittance) -> models.Quittance:
+    """Attache à la quittance, en attributs transitoires (non persistés), le montant réglé
+    effectif et le reste dû — pour que QuittanceRead les expose (écart §27) sans que le
+    frontend ait à recalculer. Le reste dû = prime_ttc - montant réglé (hors chèques rejetés)."""
+    regle = montant_regle(db, quittance.id)
+    quittance.montant_regle = regle
+    quittance.reste_du = quittance.prime_ttc - regle
+    return quittance

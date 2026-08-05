@@ -21,6 +21,12 @@ def dec(valeur):
 
 
 def test_recette_bout_en_bout(client, auth, refs):
+    # 0. RF-CRM (§25) : un client sans identité obligatoire est refusé (422), pas accepté
+    reponse = client.post("/clients", headers=auth, json={"type": "particulier"})
+    assert reponse.status_code == 422, reponse.text
+    reponse = client.post("/clients", headers=auth, json={"type": "entreprise"})  # sans raison sociale/ICE
+    assert reponse.status_code == 422, reponse.text
+
     # 1. Client entreprise
     reponse = client.post("/clients", headers=auth, json={
         "type": "entreprise", "raison_sociale": "Recette Auto SARL", "ice": "RECETTE0001",
@@ -85,7 +91,13 @@ def test_recette_bout_en_bout(client, auth, refs):
     # 7. Validation de l'avenant -> quittance générée automatiquement (RF-SOUS-07)
     reponse = client.patch(f"/sous/avenants/{avenant_id}/valider", headers=auth)
     assert reponse.status_code == 200, reponse.text
-    assert reponse.json()["statut"] == "valide"
+    validation = reponse.json()
+    assert validation["statut"] == "valide"
+    # §26 : la réponse de validation inclut la quittance générée (plus de GET séparé)
+    assert validation["quittance"] is not None, validation
+    assert dec(validation["quittance"]["prime_ttc"]) == Decimal("1140.00")
+    # §27 : reste dû = TTC (rien réglé encore) sur la quittance renvoyée
+    assert dec(validation["quittance"]["reste_du"]) == Decimal("1140.00")
 
     # 8. Quittance auto : prime_ttc = prime_nette + taxes + timbres + accessoires (règle n°4)
     reponse = client.get("/quittances", headers=auth, params={"police_id": police_id})
@@ -103,6 +115,9 @@ def test_recette_bout_en_bout(client, auth, refs):
     assert dec(quittance["prime_ttc"]) == Decimal("1140.00")
     assert dec(quittance["commission"]) == Decimal("100.00")  # 10 % (barème Sanlam/Auto)
     assert quittance["statut"] == "emise"
+    # §27 : montant réglé et reste dû réels exposés (ici impayée : 0 réglé, TTC restant dû)
+    assert dec(quittance["montant_regle"]) == Decimal("0.00")
+    assert dec(quittance["reste_du"]) == Decimal("1140.00")
 
     # 8b. Tarification automatique par garantie (RF-SOUS-02) : montant_prime omis -> calculé au
     # barème du produit. Ajouté APRÈS la quittance pour ne pas modifier ses montants.
@@ -153,9 +168,12 @@ def test_recette_bout_en_bout(client, auth, refs):
                           headers=auth, json={"montant_affecte": "1140.00"})
     assert reponse.status_code == 200, reponse.text
 
-    # 11. La quittance passe en « réglée »
+    # 11. La quittance passe en « réglée » ; reste dû à 0 (§27)
     reponse = client.get(f"/quittances/{quittance_id}", headers=auth)
-    assert reponse.json()["statut"] == "reglee", reponse.json()
+    corps = reponse.json()
+    assert corps["statut"] == "reglee", corps
+    assert dec(corps["montant_regle"]) == Decimal("1140.00")
+    assert dec(corps["reste_du"]) == Decimal("0.00")
 
     # 12. Bordereau de versement, ajout de l'encaissement, validation (super admin)
     reponse = client.post("/banq/bordereaux", headers=auth, json={
@@ -198,6 +216,16 @@ def test_recette_bout_en_bout(client, auth, refs):
     # 15. Commission calculée selon le barème : 10 % de 1000 = 100 ; prime nette reversée = 1000
     assert dec(bordereau_reversement["commission_totale"]) == Decimal("100.00"), bordereau_reversement
     assert dec(bordereau_reversement["montant_total"]) == Decimal("1000.00"), bordereau_reversement
+
+    # §28 : le GET de détail inclut les lignes, enrichies du numéro de quittance et de police
+    reponse = client.get(f"/rev/bordereaux/{bordereau_reversement_id}", headers=auth)
+    assert reponse.status_code == 200, reponse.text
+    detail = reponse.json()
+    assert len(detail["lignes"]) == 1, detail
+    ligne_detail = detail["lignes"][0]
+    assert ligne_detail["quittance_id"] == quittance_id
+    assert ligne_detail["numero_quittance"] == quittance["numero_quittance"], ligne_detail
+    assert ligne_detail["numero_police"] == police["numero_police"], ligne_detail
 
     # 15b. Reversement effectif (PATCH .../reverser, super admin, §18) : valide -> reverse
     url_reverser = f"/rev/bordereaux/{bordereau_reversement_id}/reverser"

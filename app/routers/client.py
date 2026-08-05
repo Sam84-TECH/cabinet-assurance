@@ -31,7 +31,7 @@ def get_client(client_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{client_id}", response_model=schemas.ClientRead)
-def update_client(client_id: int, payload: schemas.ClientCreate, db: Session = Depends(get_db),
+def update_client(client_id: int, payload: schemas.ClientUpdate, db: Session = Depends(get_db),
                    user: models.Utilisateur = Depends(get_current_user)):
     return crud.update(db, models.Client, client_id, payload.model_dump(exclude_unset=True))
 

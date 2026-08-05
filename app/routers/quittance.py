@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
 from ..database import get_db
+from ..reglement import enrichir_quittance
 
 router = APIRouter(prefix="/quittances", tags=["Quittance"])
 
@@ -28,9 +29,10 @@ def create_quittance():
 @router.get("", response_model=list[schemas.QuittanceRead])
 def list_quittances(police_id: int | None = None, statut: models.StatutQuittance | None = None,
                      skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud.list_all(db, models.Quittance, skip, limit, police_id=police_id, statut=statut)
+    quittances = crud.list_all(db, models.Quittance, skip, limit, police_id=police_id, statut=statut)
+    return [enrichir_quittance(db, q) for q in quittances]  # + montant_regle / reste_du (§27)
 
 
 @router.get("/{quittance_id}", response_model=schemas.QuittanceRead)
 def get_quittance(quittance_id: int, db: Session = Depends(get_db)):
-    return crud.get_or_404(db, models.Quittance, quittance_id)
+    return enrichir_quittance(db, crud.get_or_404(db, models.Quittance, quittance_id))  # + reste_du (§27)
