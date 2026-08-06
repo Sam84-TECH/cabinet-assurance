@@ -285,3 +285,57 @@ def test_recette_bout_en_bout(client, auth, refs):
     assert profil["email"] == "admin@recette.test", profil
     assert profil["role"] == "super_administrateur", profil
     assert "mot_de_passe_hash" not in profil  # le hash ne fuit jamais
+
+    # 19. Annulation de quittance (§11) + numéro de police dans la balance âgée (§14).
+    # On monte une quittance dédiée, émise et non payée (après les comptes du dashboard).
+    reponse = client.post("/clients", headers=auth, json={
+        "type": "entreprise", "raison_sociale": "Annulation SARL", "ice": "ANNUL0001"})
+    client_annul_id = reponse.json()["id"]
+    reponse = client.post("/sous/polices", headers=auth, json={
+        "client_id": client_annul_id, "produit_id": refs["produit_id"],
+        "date_effet": AUJ.isoformat(), "date_echeance": DANS_UN_AN.isoformat()})
+    police_annul = reponse.json()
+    reponse = client.post("/risques", headers=auth, json={
+        "police_id": police_annul["id"], "type_risque": "vehicule", "attributs": {
+            "immatriculation": "99-B-99", "marque": "Fiat", "modele": "Panda",
+            "date_mise_en_circulation": "01/2020", "valeur_neuf": "90000.00"}})
+    reponse = client.post("/police-garanties", headers=auth, json={
+        "police_id": police_annul["id"], "risque_id": reponse.json()["id"],
+        "garantie_id": refs["garanties"]["DC"], "montant_prime": "500.00"})
+    assert reponse.status_code == 200, reponse.text
+    for piece_id in refs["pieces_oblig"]:
+        client.post("/pieces-fournies", headers=auth, json={
+            "police_id": police_annul["id"], "piece_requise_id": piece_id, "reference": "ok"})
+    reponse = client.post("/sous/avenants", headers=auth, json={
+        "police_id": police_annul["id"], "type_avenant": "affaire_nouvelle", "date_effet": AUJ.isoformat()})
+    reponse = client.patch(f"/sous/avenants/{reponse.json()['id']}/valider", headers=auth)
+    quittance_annul_id = reponse.json()["quittance"]["id"]
+
+    # §14 : la quittance impayée figure dans la balance âgée, avec son numéro de police
+    reponse = client.get("/recouv/balance-agee", headers=auth)
+    assert reponse.status_code == 200, reponse.text
+    ligne = next((l for l in reponse.json()["lignes"] if l["quittance_id"] == quittance_annul_id), None)
+    assert ligne is not None and ligne["numero_police"] == police_annul["numero_police"], ligne
+
+    # §11 : annulation réservée super admin, motif obligatoire, uniquement si émise
+    reponse = client.patch(f"/quittances/{quittance_annul_id}/annuler", headers=auth,
+                           json={"motif": "   "})  # motif vide -> 422
+    assert reponse.status_code == 422, reponse.text
+    reponse = client.patch(f"/quittances/{quittance_annul_id}/annuler", headers=auth,
+                           json={"motif": "Erreur de saisie"})
+    assert reponse.status_code == 200, reponse.text
+    annulee = reponse.json()
+    assert annulee["statut"] == "annulee" and annulee["motif_annulation"] == "Erreur de saisie", annulee
+    assert dec(annulee["reste_du"]) == Decimal("0.00"), annulee  # annulée -> plus rien dû
+    reponse = client.patch(f"/quittances/{quittance_annul_id}/annuler", headers=auth,
+                           json={"motif": "déjà annulée"})  # plus émise -> 400
+    assert reponse.status_code == 400, reponse.text
+
+    # Le chiffre d'affaires exclut la quittance annulée (seule la quittance réglée de 1140 compte)
+    reponse = client.get("/reporting/chiffre-affaires", headers=auth, params={
+        "date_debut": (AUJ - datetime.timedelta(days=1)).isoformat(),
+        "date_fin": (AUJ + datetime.timedelta(days=1)).isoformat()})
+    assert reponse.status_code == 200, reponse.text
+    ca = reponse.json()
+    assert ca["nombre_quittances"] == 1, ca
+    assert dec(ca["prime_ttc_totale"]) == Decimal("1140.00"), ca

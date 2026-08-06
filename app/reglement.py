@@ -59,5 +59,9 @@ def enrichir_quittance(db: Session, quittance: models.Quittance) -> models.Quitt
     frontend ait à recalculer. Le reste dû = prime_ttc - montant réglé (hors chèques rejetés)."""
     regle = montant_regle(db, quittance.id)
     quittance.montant_regle = regle
-    quittance.reste_du = quittance.prime_ttc - regle
+    # Une quittance annulée n'est plus due : reste dû à 0 (sinon on afficherait le TTC, trompeur).
+    if quittance.statut == models.StatutQuittance.annulee:
+        quittance.reste_du = Decimal("0")
+    else:
+        quittance.reste_du = quittance.prime_ttc - regle
     return quittance

@@ -95,6 +95,7 @@ def calculer_balance_agee(db: Session) -> dict:
             "quittance_id": quittance.id,
             "numero_quittance": quittance.numero_quittance,
             "police_id": quittance.police_id,
+            "numero_police": police.numero_police if police else None,  # écart §14
             "client_id": police.client_id if police else None,
             "client": _nom_client(client),
             "periode_debut": quittance.periode_debut,

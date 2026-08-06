@@ -97,7 +97,8 @@ def commissions(date_debut: date, date_fin: date, db: Session = Depends(get_db))
 @router.get("/chiffre-affaires")
 def chiffre_affaires(date_debut: date, date_fin: date, db: Session = Depends(get_db)):
     quittances = db.query(models.Quittance).filter(
-        models.Quittance.date_creation >= date_debut, models.Quittance.date_creation <= date_fin
+        models.Quittance.date_creation >= date_debut, models.Quittance.date_creation <= date_fin,
+        models.Quittance.statut != models.StatutQuittance.annulee,  # une quittance annulée ne compte pas
     ).all()
     return {
         "periode": {"debut": date_debut, "fin": date_fin},

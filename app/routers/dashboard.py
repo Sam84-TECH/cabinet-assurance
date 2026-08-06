@@ -10,14 +10,14 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from .. import models
+from .. import models, schemas
 from ..database import get_db
 from ..sync import synchroniser_statuts_polices
 
 router = APIRouter(prefix="/dashboard", tags=["Tableau de bord"])
 
 
-@router.get("")
+@router.get("", response_model=schemas.DashboardRead)
 def get_dashboard(db: Session = Depends(get_db)):
     synchroniser_statuts_polices(db)
     aujourdhui = date.today()

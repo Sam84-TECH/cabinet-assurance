@@ -364,6 +364,11 @@ class Quittance(Base):
     )
     date_creation: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
+    # Annulation d'une quittance (statut `annulee`) : motif, date et auteur (écart §11).
+    motif_annulation: Mapped[str | None] = mapped_column(String(255))
+    date_annulation: Mapped[date | None] = mapped_column(Date)
+    annule_par: Mapped[int | None] = mapped_column(ForeignKey("utilisateur.id"))
+
 
 # ============================================================
 # BLOC 5 — Encaissement (module ENC)

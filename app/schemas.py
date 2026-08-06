@@ -415,6 +415,23 @@ class QuittanceRead(ORMBase):
     # lecture (get/list quittances, réponse de validation d'avenant) ; None si non enrichi.
     montant_regle: Decimal | None = None
     reste_du: Decimal | None = None
+    # Annulation (écart §11) : renseignés uniquement pour une quittance `annulee`.
+    motif_annulation: str | None = None
+    date_annulation: date | None = None
+    annule_par: int | None = None
+
+
+class AnnulationQuittanceCreate(BaseModel):
+    # quittance_id vient de l'URL (/quittances/{id}/annuler), pas du corps.
+    motif: str = Field(max_length=255)  # motif d'annulation obligatoire (écart §11)
+
+    @field_validator("motif")
+    @classmethod
+    def _motif_non_vide(cls, valeur: str) -> str:
+        valeur = valeur.strip()
+        if not valeur:
+            raise ValueError("Le motif d'annulation est obligatoire (texte non vide).")
+        return valeur
 
 
 class AvenantValideRead(AvenantRead):
@@ -675,6 +692,7 @@ class LigneBalanceAgee(BaseModel):
     quittance_id: int
     numero_quittance: str
     police_id: int
+    numero_police: str | None  # libellé affiché à l'écran (écart §14)
     client_id: int | None
     client: str
     periode_debut: date
@@ -753,3 +771,17 @@ class Vue360Client(BaseModel):
     quittances: list[QuittanceRead]
     solde: SoldeClient
     encaissements: list[EncaissementRead]
+
+
+# ============================================================
+# Tableau de bord (écart §22 : contrat OpenAPI typé)
+# ============================================================
+
+class DashboardRead(BaseModel):
+    contrats_actifs: int
+    contrats_expirant_sous_30_jours: int
+    contrats_renouveles_aujourdhui: int
+    paiements_en_attente: int
+    cheques_non_encaisses: int
+    dossiers_recouvrement_ouverts: int
+    nombre_clients: int
