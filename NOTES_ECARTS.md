@@ -4,7 +4,7 @@ La source de vérité des écarts est **`ECARTS_FRONTEND_BACKEND.md`, qui vit da
 frontend** (non dupliqué ici). Ce fichier se contente de tracer, côté backend, les écarts
 traités de ce côté.
 
-## Lot 3
+## Lot 3 — revue complète des écarts (tous résolus côté backend)
 
 - **§28 (détail bordereau reversement)** : `GET /rev/bordereaux/{id}` renvoie désormais les
   lignes, enrichies du numéro de quittance et de police (`BordereauReversementDetailRead`) — résolu.
@@ -13,6 +13,12 @@ traités de ce côté.
   générée en plus de l'avenant (`AvenantValideRead`) — résolu.
 - **§25 (identité client)** : `POST /clients` valide l'identité selon le type (422 explicite) au
   lieu de laisser la contrainte CHECK remonter un 400 technique — résolu.
+- **§22 (`DashboardRead`)** : `GET /dashboard` typé par un `response_model` — résolu.
+- **§14 (numéro de police)** : `LigneBalanceAgee` expose `numero_police` — résolu.
+- **§11 (annulation de quittance)** : `PATCH /quittances/{id}/annuler` (super admin, motif
+  obligatoire, seulement si `emise`, refus si déjà reversée) — résolu.
+
+_§13 sera revérifié séparément au câblage frontend (hors de ce lot)._
 
 ## Lots précédents
 
@@ -20,4 +26,3 @@ traités de ce côté.
   `QUESTIONS_ENCADRANT.md` — **écart §24 du frontend résolu.**
 - **§23 (`GET /auth/me`)** : endpoint **déjà ajouté** (profil du connecté, testé dans la recette) —
   résolu côté backend, à reprendre côté frontend si l'ECARTS le liste encore « en attente ».
-- **§22 (`DashboardRead`)** : en attente, non urgent (seul écart encore ouvert).
