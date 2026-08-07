@@ -339,3 +339,39 @@ def test_recette_bout_en_bout(client, auth, refs):
     ca = reponse.json()
     assert ca["nombre_quittances"] == 1, ca
     assert dec(ca["prime_ttc_totale"]) == Decimal("1140.00"), ca
+
+    # 21. Avenant de modification (règle 17) : sémantique minimale et tracée, sans quittance.
+    # La police principale a un avenant « affaire nouvelle » validé -> composition verrouillée :
+    # retirer directement une garantie est refusé (règle 13).
+    reponse = client.get("/police-garanties", headers=auth, params={"police_id": police_id})
+    pg_id = reponse.json()[-1]["id"]  # une garantie ajoutée en 8b, hors quittance déjà émise
+    reponse = client.delete(f"/police-garanties/{pg_id}", headers=auth)
+    assert reponse.status_code == 400, reponse.text  # verrouillée : passer par un avenant
+
+    # Un avenant de modification sans motif est refusé (422) : le motif est la seule trace du
+    # « quoi » modifié tant qu'il n'y a pas de champs structurés.
+    reponse = client.post("/sous/avenants", headers=auth, json={
+        "police_id": police_id, "type_avenant": "modification", "date_effet": AUJ.isoformat()})
+    assert reponse.status_code == 422, reponse.text
+
+    reponse = client.post("/sous/avenants", headers=auth, json={
+        "police_id": police_id, "type_avenant": "modification", "date_effet": AUJ.isoformat(),
+        "motif": "Retrait d'une garantie"})
+    assert reponse.status_code == 200, reponse.text
+    avenant_modif_id = reponse.json()["id"]
+    assert reponse.json()["statut"] == "brouillon", reponse.json()
+
+    # Brouillon de modification en cours -> la composition est rouverte : le retrait passe.
+    reponse = client.delete(f"/police-garanties/{pg_id}", headers=auth)
+    assert reponse.status_code == 204, reponse.text
+
+    # Validation de la modification : aucune quittance générée (volet financier différé),
+    # et la composition se reverrouille.
+    reponse = client.patch(f"/sous/avenants/{avenant_modif_id}/valider", headers=auth)
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["quittance"] is None, reponse.json()
+
+    reponse = client.get("/police-garanties", headers=auth, params={"police_id": police_id})
+    autre_pg_id = reponse.json()[-1]["id"]
+    reponse = client.delete(f"/police-garanties/{autre_pg_id}", headers=auth)
+    assert reponse.status_code == 400, reponse.text  # reverrouillée après validation

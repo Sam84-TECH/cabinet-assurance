@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from ..database import get_db
 from ..auth import get_current_user
+from ..avenant import composition_verrouillee
 
 router = APIRouter(prefix="/risques", tags=["Risque"])
 
@@ -39,15 +40,14 @@ def update_risque(risque_id: int, payload: schemas.RisqueUpdate, db: Session = D
 @router.delete("/{risque_id}", status_code=204)
 def delete_risque(risque_id: int, db: Session = Depends(get_db),
                   user: models.Utilisateur = Depends(get_current_user)):
-    """Suppression autorisée tant qu'aucun avenant n'est validé sur la police (règle 13).
-    Une fois la police engagée, retirer un véhicule passe par un avenant, pas un DELETE."""
+    """Suppression autorisée tant qu'aucun avenant n'est validé sur la police (règle 13), ou
+    le temps d'un avenant de modification en brouillon qui rouvre la composition (règle 17).
+    Une fois la police engagée, retirer un véhicule passe par un avenant, pas un DELETE sec."""
     risque = crud.get_or_404(db, models.Risque, risque_id)
-    if db.query(models.Avenant).filter_by(
-        police_id=risque.police_id, statut=models.StatutAvenant.valide
-    ).first():
+    if composition_verrouillee(db, risque.police_id):
         raise HTTPException(
             400,
-            "Un avenant est validé sur cette police : le retrait d'un véhicule doit "
-            "passer par un avenant, pas par une suppression.",
+            "Un avenant est validé sur cette police : le retrait d'un véhicule passe par un "
+            "avenant de modification (créez-le en brouillon, puis validez-le).",
         )
     crud.delete(db, models.Risque, risque_id)

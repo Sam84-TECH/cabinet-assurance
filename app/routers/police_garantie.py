@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from ..database import get_db
 from ..auth import get_current_user
+from ..avenant import composition_verrouillee
 from ..tarification import calculer_prime_garantie
 
 router = APIRouter(prefix="/police-garanties", tags=["Police garantie"])
@@ -59,15 +60,14 @@ def update_police_garantie(police_garantie_id: int, payload: schemas.PoliceGaran
 @router.delete("/{police_garantie_id}", status_code=204)
 def delete_police_garantie(police_garantie_id: int, db: Session = Depends(get_db),
                            user: models.Utilisateur = Depends(get_current_user)):
-    """Suppression autorisée tant qu'aucun avenant n'est validé sur la police (règle 13).
-    Une fois la police engagée, retirer une garantie passe par un avenant, pas un DELETE."""
+    """Suppression autorisée tant qu'aucun avenant n'est validé sur la police (règle 13), ou
+    le temps d'un avenant de modification en brouillon qui rouvre la composition (règle 17).
+    Une fois la police engagée, retirer une garantie passe par un avenant, pas un DELETE sec."""
     ligne = crud.get_or_404(db, models.PoliceGarantie, police_garantie_id)
-    if db.query(models.Avenant).filter_by(
-        police_id=ligne.police_id, statut=models.StatutAvenant.valide
-    ).first():
+    if composition_verrouillee(db, ligne.police_id):
         raise HTTPException(
             400,
-            "Un avenant est validé sur cette police : le retrait d'une garantie doit "
-            "passer par un avenant, pas par une suppression.",
+            "Un avenant est validé sur cette police : le retrait d'une garantie passe par un "
+            "avenant de modification (créez-le en brouillon, puis validez-le).",
         )
     crud.delete(db, models.PoliceGarantie, police_garantie_id)

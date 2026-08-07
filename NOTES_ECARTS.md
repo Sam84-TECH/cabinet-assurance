@@ -20,6 +20,24 @@ traités de ce côté.
 
 _§13 sera revérifié séparément au câblage frontend (hors de ce lot)._
 
+### Écart « modification » — `type_avenant=modification` sans sémantique backend
+`type_avenant=modification` n'avait aucun effet serveur (ni champ « quoi modifier », ni
+quittance, ni endpoint) ; le frontend avait désactivé l'action. **Résolu côté backend par une
+sémantique minimale et tracée** (décision : définir plutôt que retirer le type — c'est un
+concept d'assurance central, attendu par la règle 13) :
+
+- l'avenant de modification **en brouillon rouvre la composition** d'une police engagée
+  (suppression d'un risque / police_garantie de nouveau autorisée) ; sa validation la
+  reverrouille en traçant auteur + date — `app/avenant.py`, branché dans `risque.py` et
+  `police_garantie.py` (matérialise le « passer par un avenant » de la règle 13) ;
+- son **`motif` est obligatoire** (422 sinon) : seule trace du « quoi » modifié en l'absence
+  de champs structurés — `AvenantCreate` ;
+- **aucune quittance** générée (`AvenantValideRead.quittance` = None) ; règle 17 du CLAUDE.md.
+
+Le **volet financier** (prorata de prime, avoir/remboursement) est une **question encadrant** :
+voir `QUESTIONS_ENCADRANT.md` (Q2). Frontend : l'action « modification » peut être réactivée
+pour son usage non financier (ajustement de composition tracé).
+
 ## Lots précédents
 
 - **§24 (RC auto)** : RC corrigée côté backend (mode `bareme_puissance`), voir

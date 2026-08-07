@@ -92,6 +92,8 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
     avenant est **validé** sur la police concernée : passé ce point, retirer un véhicule
     ou une garantie passe par un avenant (message d'erreur explicite l'indiquant). Tant
     qu'aucun avenant n'est validé, la suppression reste possible (composition en cours).
+    Passé ce point, elle redevient possible le temps d'un avenant de **modification en
+    brouillon** (cf. règle 17), qui matérialise ce « passage par un avenant ».
 14. La suppression d'un **client** est refusée s'il est **référencé ailleurs** — police,
     encaissement, ou lien familial (cas particulier de la règle 15).
 15. **Aucune suppression ne doit provoquer une erreur 500** par violation de contrainte
@@ -103,6 +105,15 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
     nommées) tant qu'une pièce obligatoire du produit n'est pas fournie pour le dossier
     (table `piece_justificative_fournie`, marquée via `POST /pieces-fournies`). Le
     renouvellement n'y est pas soumis (pièces déjà au dossier).
+17. **L'avenant de `modification` a une sémantique minimale et tracée.** Il est l'enveloppe
+    sous laquelle on **retire** un élément de composition d'une police déjà engagée (véhicule ou
+    garantie) : tant qu'il est en **brouillon**, il rouvre la composition pour en autoriser la
+    **suppression** (règle 13, via `app/avenant.py`) ; sa validation la reverrouille en traçant
+    auteur + date, **sans générer de quittance**. Son `motif` est **obligatoire** (422 sinon) —
+    seule trace du « quoi » modifié, faute de champs structurés. En revanche l'**ajout** d'une
+    garantie et l'**ajustement de prime** ne sont **pas** verrouillés par cette enveloppe : ils
+    relèvent du **volet financier** (prorata temporis, avoir/remboursement), **hors périmètre de
+    cette phase**, à définir avec l'encadrant (cf. `QUESTIONS_ENCADRANT.md`, Q2).
 
 ## État actuel — travail restant, par ordre de priorité
 

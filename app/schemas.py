@@ -346,6 +346,18 @@ class AvenantCreate(BaseModel):
     motif: str | None = None
     date_effet: date
 
+    @model_validator(mode="after")
+    def _motif_requis_pour_modification(self):
+        # Un avenant de modification n'a pas (encore) de champs structurés disant « quoi
+        # modifier » : le motif en texte libre est la seule trace du changement, on l'exige
+        # donc à la création (règle 17). Volet financier prorata/avoir différé (Q2 encadrant).
+        if self.type_avenant == TypeAvenant.modification:
+            if self.motif is None or not self.motif.strip():
+                raise ValueError(
+                    "Un avenant de modification doit préciser un motif (ce qui est modifié).")
+            self.motif = self.motif.strip()
+        return self
+
 
 class AvenantRead(ORMBase):
     id: int
