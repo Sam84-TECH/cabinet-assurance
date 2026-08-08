@@ -149,8 +149,8 @@ en priorité (service postgres, port 5433, volume persistant pour les données).
 - [x] `GET /auth/me` — profil de l'utilisateur connecté déduit du jeton (écart §23)
 
 ### 4. Éditions et livraison
-- [ ] Génération PDF : quittance, police, attestation, bordereau de versement, bordereau de reversement
-- [ ] Exports Excel des rapports
+- [x] Génération PDF : quittance, police, attestation, bordereau de versement, bordereau de reversement (RF-POL-04, archivée horodatée — `app/pdf.py`, `app/routers/documents.py`, `app/archivage.py`)
+- [x] Exports Excel des rapports (`format=xlsx` sur chaque endpoint `reporting.py`, converti par `app/excel.py`)
 - [x] Scénario de recette bout en bout (voir ci-dessous)
 - [ ] Tests pytest, Dockerfile + docker-compose, README
 - [ ] `.gitignore` (au minimum `venv/`, `.env`, `__pycache__/`)

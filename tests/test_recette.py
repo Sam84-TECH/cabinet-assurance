@@ -10,6 +10,9 @@ vert sans intervention manuelle, le backend est considéré terminé pour le pé
 
 import datetime
 from decimal import Decimal
+from io import BytesIO
+
+from openpyxl import load_workbook
 
 AUJ = datetime.date.today()
 DANS_UN_AN = AUJ + datetime.timedelta(days=365)
@@ -375,3 +378,50 @@ def test_recette_bout_en_bout(client, auth, refs):
     autre_pg_id = reponse.json()[-1]["id"]
     reponse = client.delete(f"/police-garanties/{autre_pg_id}", headers=auth)
     assert reponse.status_code == 400, reponse.text  # reverrouillée après validation
+
+    # 22. Exports Excel des rapports (section 5.3) : mêmes données qu'en JSON, en .xlsx serveur.
+    periode = {"date_debut": (AUJ - datetime.timedelta(days=1)).isoformat(),
+               "date_fin": (AUJ + datetime.timedelta(days=1)).isoformat()}
+
+    # format=json (défaut) inchangé : le reporting reste consultable en JSON
+    reponse = client.get("/reporting/chiffre-affaires", headers=auth, params=periode)
+    assert reponse.status_code == 200 and reponse.headers["content-type"].startswith("application/json")
+
+    # Chiffre d'affaires en xlsx : valeurs scalaires dans la feuille « Résumé »
+    reponse = client.get("/reporting/chiffre-affaires", headers=auth,
+                         params={**periode, "format": "xlsx"})
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    assert reponse.content[:2] == b"PK", "un .xlsx est une archive ZIP (signature PK)"
+    classeur = load_workbook(BytesIO(reponse.content))
+    resume = classeur["Résumé"]
+    valeurs = {r[0].value: r[1].value for r in resume.iter_rows(min_row=4) if r[0].value}
+    assert valeurs["Nombre quittances"] == 1, valeurs
+    assert valeurs["Prime ttc totale"] == 1140.0, valeurs
+
+    # Paiements en xlsx : le sous-dictionnaire par_mode_paiement est aplati en lignes préfixées
+    reponse = client.get("/reporting/paiements", headers=auth, params={**periode, "format": "xlsx"})
+    assert reponse.status_code == 200, reponse.text
+    resume = load_workbook(BytesIO(reponse.content))["Résumé"]
+    valeurs = {r[0].value: r[1].value for r in resume.iter_rows(min_row=4) if r[0].value}
+    assert valeurs["Nombre encaissements"] == 1, valeurs
+    assert any(str(cle).startswith("Par mode paiement - ") for cle in valeurs), valeurs
+
+    # Échéances en xlsx : la liste des polices devient une feuille dédiée
+    reponse = client.get("/reporting/echeances", headers=auth, params={"jours": 400, "format": "xlsx"})
+    assert reponse.status_code == 200, reponse.text
+    classeur = load_workbook(BytesIO(reponse.content))
+    assert "Polices" in classeur.sheetnames, classeur.sheetnames
+    assert classeur["Polices"].max_row >= 2, "en-tête + au moins une police"
+
+    # Liste VIDE : la feuille dédiée existe quand même (cohérence avec le JSON qui garde la clé).
+    # jours=0 -> horizon réduit à aujourd'hui, aucune police (échéances à un an) -> polices vides.
+    reponse = client.get("/reporting/echeances", headers=auth, params={"jours": 0, "format": "xlsx"})
+    assert reponse.status_code == 200, reponse.text
+    classeur = load_workbook(BytesIO(reponse.content))
+    assert "Polices" in classeur.sheetnames, classeur.sheetnames  # présente même à vide
+
+    # Auth : les endpoints de reporting exigent un jeton (données financières, non publiques)
+    reponse = client.get("/reporting/production", params=periode)  # sans en-tête d'autorisation
+    assert reponse.status_code == 401, reponse.text
