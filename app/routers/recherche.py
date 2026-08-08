@@ -27,6 +27,8 @@ def recherche(q: str, db: Session = Depends(get_db),
         return {"clients": [], "polices": [], "quittances": [], "risques": []}
     motif = f"%{terme}%"
 
+    # Ordre imposé (écart §13) : clients d'abord, puis polices (qui dépendent des clients
+    # trouvés), puis quittances (qui dépendent des polices trouvées).
     clients = db.query(models.Client).filter(or_(
         models.Client.nom.ilike(motif),
         models.Client.raison_sociale.ilike(motif),
@@ -34,13 +36,19 @@ def recherche(q: str, db: Session = Depends(get_db),
         models.Client.ice.ilike(motif),
     )).limit(LIMITE_PAR_TYPE).all()
 
-    polices = db.query(models.Police).filter(
-        models.Police.numero_police.ilike(motif)
-    ).limit(LIMITE_PAR_TYPE).all()
+    # Polices : recherche directe par numéro ET polices liées à un client déjà trouvé (§13).
+    ids_clients = [c.id for c in clients]
+    polices = db.query(models.Police).filter(or_(
+        models.Police.numero_police.ilike(motif),
+        models.Police.client_id.in_(ids_clients),
+    )).limit(LIMITE_PAR_TYPE).all()
 
-    quittances = db.query(models.Quittance).filter(
-        models.Quittance.numero_quittance.ilike(motif)
-    ).limit(LIMITE_PAR_TYPE).all()
+    # Quittances : recherche directe par numéro ET quittances liées à une police déjà trouvée (§13).
+    ids_polices = [p.id for p in polices]
+    quittances = db.query(models.Quittance).filter(or_(
+        models.Quittance.numero_quittance.ilike(motif),
+        models.Quittance.police_id.in_(ids_polices),
+    )).limit(LIMITE_PAR_TYPE).all()
 
     # immatriculation du véhicule : stockée dans le JSONB `attributs` du risque.
     risques = db.query(models.Risque).filter(
