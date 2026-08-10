@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
 from ..database import get_db
+from ..reglement import enrichir_quittance
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/clients", tags=["Client"])
@@ -56,6 +57,10 @@ def vue_360(client_id: int, db: Session = Depends(get_db),
         db.query(models.Quittance).join(models.Police)
         .filter(models.Police.client_id == client_id).all()
     )
+    # §30 (même cause que §27) : chaque quittance de la fiche client expose son reste dû réel
+    # (prime_ttc - réglé hors chèques rejetés), pas seulement son TTC total.
+    for q in quittances:
+        enrichir_quittance(db, q)
     encaissements = db.query(models.Encaissement).filter_by(client_id=client_id).all()
 
     total_du = sum(

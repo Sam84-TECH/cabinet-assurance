@@ -178,6 +178,17 @@ def test_recette_bout_en_bout(client, auth, refs):
     assert dec(corps["montant_regle"]) == Decimal("1140.00")
     assert dec(corps["reste_du"]) == Decimal("0.00")
 
+    # 11 bis. §30 : la fiche client (vue-360) expose le reste dû réel PAR quittance, pas seulement
+    # le TTC. La quittance réglée y remonte donc reste_du = 0 (et non 1140), montant_regle = 1140.
+    reponse = client.get(f"/clients/{client_id}/vue-360", headers=auth)
+    assert reponse.status_code == 200, reponse.text
+    vue = reponse.json()
+    q_vue = next((q for q in vue["quittances"] if q["id"] == quittance_id), None)
+    assert q_vue is not None, vue  # la quittance doit figurer dans la vue client
+    assert q_vue["reste_du"] is not None, q_vue  # enrichie, pas laissée à None
+    assert dec(q_vue["reste_du"]) == Decimal("0.00"), q_vue
+    assert dec(q_vue["montant_regle"]) == Decimal("1140.00"), q_vue
+
     # 12. Bordereau de versement, ajout de l'encaissement, validation (super admin)
     reponse = client.post("/banq/bordereaux", headers=auth, json={
         "banque_agence_id": refs["banque_id"], "date_bordereau": AUJ.isoformat(),
