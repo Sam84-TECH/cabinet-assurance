@@ -567,6 +567,10 @@ class BordereauVersementRead(ORMBase):
     date_bordereau: date
     statut: StatutBordereauVersement
     date_creation: datetime
+    # Total du bordereau = somme des lignes (encaissements déposés). L'entête ne le stocke pas ;
+    # il est calculé à la lecture (liste et détail) pour l'écran « Liste des bordereaux ». None si
+    # non calculé.
+    montant_total: Decimal | None = None
 
 
 class BordereauVersementLigneCreate(BaseModel):
@@ -580,6 +584,20 @@ class BordereauVersementLigneRead(ORMBase):
     bordereau_versement_id: int
     encaissement_id: int
     montant: Decimal
+
+
+class BordereauVersementLigneDetailRead(BordereauVersementLigneRead):
+    """Ligne enrichie pour le détail : rattache le client et le mode de paiement de
+    l'encaissement déposé, pour un écran lisible sans jointure côté frontend."""
+    client_id: int | None = None
+    mode_paiement: str | None = None
+    reference: str | None = None  # n° / banque du chèque, sinon None
+
+
+class BordereauVersementDetailRead(BordereauVersementRead):
+    """Détail d'un bordereau de versement : l'entête (avec montant_total) + ses lignes
+    enrichies, renvoyé par GET /banq/bordereaux/{id}."""
+    lignes: list[BordereauVersementLigneDetailRead]
 
 
 # ============================================================
