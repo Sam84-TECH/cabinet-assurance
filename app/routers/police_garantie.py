@@ -60,10 +60,25 @@ def update_police_garantie(police_garantie_id: int, payload: schemas.PoliceGaran
 @router.delete("/{police_garantie_id}", status_code=204)
 def delete_police_garantie(police_garantie_id: int, db: Session = Depends(get_db),
                            user: models.Utilisateur = Depends(get_current_user)):
-    """Suppression autorisée tant qu'aucun avenant n'est validé sur la police (règle 13), ou
-    le temps d'un avenant de modification en brouillon qui rouvre la composition (règle 17).
-    Une fois la police engagée, retirer une garantie passe par un avenant, pas un DELETE sec."""
+    """Retire une garantie de la composition d'une police.
+
+    Deux garde-fous, dans cet ordre :
+    1. Une garantie **obligatoire** (RC en auto : couverture minimale légale, marquée
+       `parametres.obligatoire` — paramétrage, pas de code produit en dur) n'est **jamais**
+       retirable : le message l'explique au lieu d'un blocage muet.
+    2. Sinon, suppression autorisée tant qu'aucun avenant n'est validé sur la police (règle 13),
+       ou le temps d'un avenant de modification en brouillon qui rouvre la composition (règle 17).
+       Une fois la police engagée, retirer une garantie optionnelle passe par un avenant, pas un
+       DELETE sec."""
     ligne = crud.get_or_404(db, models.PoliceGarantie, police_garantie_id)
+    garantie = crud.get_or_404(db, models.Garantie, ligne.garantie_id)
+    if (garantie.parametres or {}).get("obligatoire"):
+        raise HTTPException(
+            400,
+            f"La garantie « {garantie.nom} » est obligatoire (couverture minimale légale) : "
+            "elle ne peut pas être retirée d'une police. Seules les garanties optionnelles "
+            "sont retirables.",
+        )
     if composition_verrouillee(db, ligne.police_id):
         raise HTTPException(
             400,
