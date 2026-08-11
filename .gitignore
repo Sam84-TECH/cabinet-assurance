@@ -13,3 +13,11 @@ __pycache__/
 
 # Documents PDF archivés (générés côté serveur, non versionnés)
 archives/
+
+# FastAPI Cloud : lien local ↔ app déployée, créé par `fastapi deploy`
+.fastapicloud/
+
+# Artefacts de build Python (wheel/sdist, métadonnées setuptools)
+build/
+dist/
+*.egg-info/

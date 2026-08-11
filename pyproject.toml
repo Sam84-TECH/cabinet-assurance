@@ -1,0 +1,46 @@
+# Métadonnées du projet — requises par FastAPI Cloud : `fastapi deploy` s'ancre sur ce
+# fichier (détection de l'app + installation des dépendances). Les dépendances reprennent
+# à l'identique requirements.txt (conservé pour le dev local et Docker). Garder les deux
+# listes synchronisées si l'une évolue.
+#
+# Pas de section [build-system] : le projet n'est pas empaqueté comme distribution
+# installable, on déclare seulement ses dépendances d'exécution.
+
+[project]
+name = "cabinet-assurance-api"
+version = "0.1.0"
+description = "API de gestion de cabinet d'agent d'assurance (Sanlam Maroc) — branche automobile"
+requires-python = ">=3.11,<3.12"   # borne à 3.11.x (env testé) — évite que la plateforme prenne 3.14
+dependencies = [
+    "fastapi[standard]",
+    "uvicorn[standard]",
+    "sqlalchemy>=2.0",
+    "alembic",
+    "psycopg[binary]",
+    "python-dotenv",
+    "pydantic",
+    "apscheduler",
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+    "python-multipart",
+    "bcrypt<4.0",
+    "fpdf2",
+    "openpyxl",
+]
+
+# Build : la plateforme installe le projet (pip/uv build). En flat-layout (dossiers `app`,
+# `migrations`, `tests` au premier niveau), l'auto-découverte de setuptools ne sait pas quoi
+# empaqueter et échoue. On lui indique explicitement de n'inclure que le package applicatif
+# `app` et ses sous-packages (app.routers, …), en excluant migrations/ et tests/.
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# Point d'entrée explicite de l'app (FastAPI Cloud) : lève toute ambiguïté d'auto-détection
+# — l'objet FastAPI est `app` dans le module `app.main` (et non un des scripts racine comme seed.py).
+[tool.fastapi]
+entrypoint = "app.main:app"
+
