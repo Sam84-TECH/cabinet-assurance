@@ -18,6 +18,7 @@ Prérequis : la base doit exister et les migrations être appliquées :
     alembic upgrade head
 """
 
+import os
 from datetime import date
 from decimal import Decimal
 
@@ -189,10 +190,45 @@ def seed(db):
         print(f"-> {maj_tarification} garantie(s) existante(s) complétée(s) avec leur barème de tarification.")
 
 
+def creer_admin_initial(db):
+    """Crée le compte super administrateur initial à partir des variables d'environnement
+    ADMIN_EMAIL et ADMIN_PASSWORD — jamais commitées, saisies au moment du peuplement
+    (mise en production) ou dans le .env local.
+
+    IDEMPOTENT et NON DESTRUCTIF : ne crée rien si le compte existe déjà (n'écrase jamais un
+    mot de passe). Sans ces deux variables, aucun compte n'est créé — un message l'indique.
+    Volontairement hors de `seed(db)` (paramétrage de référence pur, réutilisé par les tests) :
+    seul `python seed.py` amorce l'admin.
+    """
+    from app.auth import hacher_mot_de_passe  # import tardif : ne charge passlib que si besoin
+
+    email = (os.environ.get("ADMIN_EMAIL") or "").strip()
+    mot_de_passe = os.environ.get("ADMIN_PASSWORD") or ""
+    if not email or not mot_de_passe:
+        print("-> Aucun compte admin créé : définir ADMIN_EMAIL et ADMIN_PASSWORD pour en amorcer un.")
+        return
+
+    if db.query(models.Utilisateur).filter_by(email=email).first() is not None:
+        print(f"-> Compte admin déjà présent ({email}) : inchangé (mot de passe non modifié).")
+        return
+
+    db.add(models.Utilisateur(
+        nom=(os.environ.get("ADMIN_NOM") or "Administrateur").strip(),
+        prenom=(os.environ.get("ADMIN_PRENOM") or "Cabinet").strip(),
+        email=email,
+        mot_de_passe_hash=hacher_mot_de_passe(mot_de_passe),
+        role=models.RoleUtilisateur.super_administrateur,
+        actif=True,
+    ))
+    db.commit()
+    print(f"-> Compte super administrateur créé : {email}")
+
+
 def main():
     db = SessionLocal()
     try:
         seed(db)
+        creer_admin_initial(db)
     finally:
         db.close()
 
