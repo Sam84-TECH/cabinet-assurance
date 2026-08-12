@@ -117,26 +117,56 @@ def calculer_balance_agee(db: Session) -> dict:
     }
 
 
-def basculer_quittances_en_recouvrement(db: Session) -> int:
+def basculer_quittances_en_recouvrement_detaille(db: Session) -> dict:
     """RF-ECH-04 : ouvre un dossier de recouvrement pour chaque quittance impayée dont le
     retard dépasse le délai réglementaire (DELAI_RECOUVREMENT_JOURS), sauf si un dossier
-    non clôturé existe déjà pour cette quittance. Idempotent — renvoie le nombre de dossiers
-    créés (0 si rien à faire), ce qui rend l'exécution rejouable sans doublon."""
-    crees = 0
-    for quittance, _reste, jours in _quittances_impayees(db):
-        if jours <= DELAI_RECOUVREMENT_JOURS:
-            continue
+    non clôturé existe déjà pour cette quittance. Idempotent (rejouable sans doublon).
+
+    Renvoie un résumé exploitable côté écran plutôt qu'un simple compteur : nombre de quittances
+    impayées vérifiées, nombre d'échues, dossiers réellement ouverts, dossiers déjà en cours (donc
+    non rouverts), et le détail des quittances pour lesquelles un dossier vient d'être ouvert.
+    « 0 dossier ouvert » devient ainsi lisible (aucune échéance dépassée vs toutes déjà suivies)."""
+    impayees = _quittances_impayees(db)
+    echues = [(q, reste, jours) for (q, reste, jours) in impayees if jours > DELAI_RECOUVREMENT_JOURS]
+
+    ouverts = []
+    deja_en_cours = 0
+    for quittance, reste, jours in echues:
         deja_ouvert = db.query(models.DossierRecouvrement).filter(
             models.DossierRecouvrement.quittance_id == quittance.id,
             models.DossierRecouvrement.statut.not_in(STATUTS_DOSSIER_CLOS),
         ).first()
         if deja_ouvert is not None:
+            deja_en_cours += 1
             continue
         db.add(models.DossierRecouvrement(
             quittance_id=quittance.id,
             statut=models.StatutDossierRecouv.ouvert,
         ))
-        crees += 1
-    if crees:
+        police = db.get(models.Police, quittance.police_id)
+        client = db.get(models.Client, police.client_id) if police else None
+        ouverts.append({
+            "quittance_id": quittance.id,
+            "numero_quittance": quittance.numero_quittance,
+            "numero_police": police.numero_police if police else None,
+            "client": _nom_client(client),
+            "jours_retard": jours,
+            "reste_du": reste,
+        })
+    if ouverts:
         db.commit()
-    return crees
+
+    return {
+        "delai_jours": DELAI_RECOUVREMENT_JOURS,
+        "quittances_verifiees": len(impayees),
+        "quittances_echues": len(echues),
+        "dossiers_ouverts": len(ouverts),
+        "deja_en_cours": deja_en_cours,
+        "dossiers": ouverts,
+    }
+
+
+def basculer_quittances_en_recouvrement(db: Session) -> int:
+    """Variante « compteur » conservée pour le planificateur (app/scheduler.py) : renvoie le
+    seul nombre de dossiers ouverts. S'appuie sur la version détaillée pour rester unique."""
+    return basculer_quittances_en_recouvrement_detaille(db)["dossiers_ouverts"]

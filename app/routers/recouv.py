@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from ..database import get_db
 from ..auth import get_current_user
-from ..recouvrement import calculer_balance_agee, basculer_quittances_en_recouvrement
+from ..recouvrement import calculer_balance_agee, basculer_quittances_en_recouvrement_detaille
 
 router = APIRouter(prefix="/recouv", tags=["Recouvrement"])
 
@@ -24,14 +24,15 @@ def balance_agee(db: Session = Depends(get_db),
     return calculer_balance_agee(db)
 
 
-@router.post("/basculer-echus")
+@router.post("/basculer-echus", response_model=schemas.ResultatBasculeRecouv)
 def basculer_echus(db: Session = Depends(get_db),
                    user: models.Utilisateur = Depends(get_current_user)):
     """Déclenche à la demande la bascule en recouvrement des quittances impayées au-delà du
     délai réglementaire (RF-ECH-04) : même traitement que la tâche planifiée quotidienne
     (app/scheduler.py), utile pour la recette et l'exploitation. Ouvre un dossier par quittance
-    échue sans dossier en cours ; renvoie le nombre de dossiers ouverts."""
-    return {"dossiers_ouverts": basculer_quittances_en_recouvrement(db)}
+    échue sans dossier en cours et renvoie un résumé (quittances vérifiées, échues, dossiers
+    ouverts, déjà en cours, détail des ouvertures)."""
+    return basculer_quittances_en_recouvrement_detaille(db)
 
 
 @router.post("/dossiers", response_model=schemas.DossierRecouvrementRead)

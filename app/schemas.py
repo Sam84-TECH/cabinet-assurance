@@ -218,6 +218,23 @@ class ClientRead(ORMBase):
     rib: str | None
 
 
+# ----- Import de clients en masse depuis un fichier Excel (RF-CRM) -----
+
+class LigneImportErreur(BaseModel):
+    ligne: int  # numéro de ligne dans le fichier (1 = en-tête), pour que l'agent la retrouve
+    valeur: str | None = None  # libellé de la ligne fautive (nom/raison sociale), si lisible
+    message: str
+
+
+class ResultatImportClients(BaseModel):
+    """Rapport de POST /clients/import-excel : combien de lignes lues, combien créées, et le
+    détail des lignes rejetées (doublon CIN/ICE, champ obligatoire manquant, type invalide…)."""
+    lignes_totales: int  # lignes de données (hors en-tête)
+    crees: int
+    noms_crees: list[str]
+    erreurs: list[LigneImportErreur]
+
+
 class LienFamilialCreate(BaseModel):
     souscripteur_id: int
     membre_id: int
@@ -741,6 +758,28 @@ class BalanceAgee(BaseModel):
     total_impaye: Decimal
     nombre_quittances: int
     lignes: list[LigneBalanceAgee]
+
+
+# ----- Résultat de la bascule en recouvrement (RF-ECH-04) -----
+
+class LigneBasculeRecouv(BaseModel):
+    quittance_id: int
+    numero_quittance: str
+    numero_police: str | None
+    client: str
+    jours_retard: int
+    reste_du: Decimal
+
+
+class ResultatBasculeRecouv(BaseModel):
+    """Résumé de POST /recouv/basculer-echus : rend « 0 dossier ouvert » lisible (aucune échéance
+    dépassée vs toutes déjà suivies) et détaille les dossiers réellement ouverts."""
+    delai_jours: int
+    quittances_verifiees: int
+    quittances_echues: int
+    dossiers_ouverts: int
+    deja_en_cours: int
+    dossiers: list[LigneBasculeRecouv]
 
 
 # ============================================================
