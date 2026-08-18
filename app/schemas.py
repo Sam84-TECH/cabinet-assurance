@@ -13,7 +13,7 @@ from app.models import (
     TypeClient, StatutClient, RoleUtilisateur, StatutPolice, TypeAvenant,
     StatutAvenant, StatutQuittance, ModePaiement, StatutEncaissement,
     StatutBordereauVersement, StatutBordereauReversement,
-    StatutDossierRecouv, TypeRelance, TypeDocument,
+    StatutDossierRecouv, TypeRelance, StatutVersementEcheancier, TypeDocument,
 )
 
 
@@ -708,6 +708,7 @@ class DossierRecouvrementRead(ORMBase):
     quittance_id: int
     statut: StatutDossierRecouv
     date_ouverture: date
+    date_derniere_etape: date  # entrée dans l'étape courante (base du délai de progression)
     date_cloture: date | None
 
 
@@ -726,6 +727,61 @@ class RelanceRead(ORMBase):
     date_relance: date
     contenu: str | None
     resultat: str | None
+
+
+# ----- Historique tracé du dossier (RF-RECOUV-05) -----
+
+class EvenementRecouvrementRead(ORMBase):
+    id: int
+    dossier_recouvrement_id: int
+    type_evenement: str
+    ancien_statut: str | None
+    nouveau_statut: str | None
+    description: str | None
+    auteur_id: int | None
+    date_evenement: datetime
+
+
+# ----- Échéancier de paiement négocié (RF-RECOUV-04) -----
+
+class EcheancierRecouvrementCreate(BaseModel):
+    # dossier_recouvrement_id vient de l'URL. Les versements sont générés côté serveur
+    # (montants égaux, dernier arrondi), espacés de `intervalle_jours`.
+    montant_total: Decimal = Field(gt=0)
+    nombre_versements: int = Field(ge=1, le=36)
+    date_premier_versement: date
+    intervalle_jours: int = Field(default=30, ge=1, le=365)
+
+
+class VersementEcheancierRead(ORMBase):
+    id: int
+    echeancier_id: int
+    numero_ordre: int
+    date_prevue: date
+    montant: Decimal
+    statut: StatutVersementEcheancier
+
+
+class VersementEcheancierUpdate(BaseModel):
+    # Seul le statut se met à jour (prévu -> réglé / manqué).
+    statut: StatutVersementEcheancier
+
+
+class EcheancierRecouvrementRead(ORMBase):
+    id: int
+    dossier_recouvrement_id: int
+    montant_total: Decimal
+    nombre_versements: int
+    date_creation: datetime
+    versements: list[VersementEcheancierRead]
+
+
+class DossierRecouvrementDetailRead(DossierRecouvrementRead):
+    """Détail d'un dossier de recouvrement : le dossier + son historique tracé (RF-RECOUV-05),
+    ses relances et son éventuel échéancier négocié (RF-RECOUV-04)."""
+    relances: list[RelanceRead]
+    evenements: list[EvenementRecouvrementRead]
+    echeancier: EcheancierRecouvrementRead | None = None
 
 
 # ----- Balance âgée des impayés (RF-RECOUV-01) -----

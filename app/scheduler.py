@@ -12,7 +12,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from .database import SessionLocal
 from .sync import synchroniser_statuts_polices
-from .recouvrement import basculer_quittances_en_recouvrement
+from .recouvrement import basculer_quittances_en_recouvrement, progresser_dossiers_echus
 
 logger = logging.getLogger("scheduler")
 
@@ -37,16 +37,30 @@ def _tache_bascule_recouvrement():
         db.close()
 
 
+def _tache_progression_recouvrement():
+    db = SessionLocal()
+    try:
+        transitions = progresser_dossiers_echus(db)
+        logger.info("Progression automatique des dossiers de recouvrement : %d transition(s).",
+                    len(transitions))
+    finally:
+        db.close()
+
+
 def demarrer_scheduler():
     # Tournent chaque jour peu après minuit, plus une fois immédiatement au démarrage
     # du serveur (pour rattraper la période où le serveur était éteint) : d'abord la
     # synchronisation des statuts de polices, puis la bascule des quittances échues en
-    # recouvrement (RF-ECH-04), qui s'appuie sur des statuts à jour.
+    # recouvrement (RF-ECH-04), puis la progression des dossiers de recouvrement d'une
+    # étape de relance à la suivante après le délai (RF-RECOUV-02) — chaque étape s'appuyant
+    # sur des données à jour.
     scheduler.add_job(_tache_synchronisation_polices, CronTrigger(hour=0, minute=5))
     scheduler.add_job(_tache_bascule_recouvrement, CronTrigger(hour=0, minute=10))
+    scheduler.add_job(_tache_progression_recouvrement, CronTrigger(hour=0, minute=15))
     scheduler.start()
     _tache_synchronisation_polices()
     _tache_bascule_recouvrement()
+    _tache_progression_recouvrement()
 
 
 def arreter_scheduler():

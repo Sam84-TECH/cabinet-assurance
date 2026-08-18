@@ -47,3 +47,28 @@ delta de prime au prorata de la période restante et l'émission du document cor
 être réactivée pour son usage **non financier** (ajustement de composition tracé).
 
 _Origine : écart « type_avenant=modification sans sémantique backend », lot 3._
+
+### Q3 — Fin d'escalade de recouvrement : suspension ou résiliation ? — RF-RECOUV-03
+Le module Recouvrement fait progresser un dossier impayé à travers les étapes de relance
+(`ouvert → en_relance (relance amiable) → mise_en_demeure`) après un délai paramétrable
+(`DELAI_ENTRE_ETAPES_JOURS`, cf. `app/recouvrement.py`). À l'issue de la **mise en demeure sans
+régularisation**, le backend bascule aujourd'hui automatiquement le contrat en **SUSPENSION**
+(réutilise la logique d'avenant de suspension existante — `progresser_dossier` / statut `suspendu`).
+
+**Choix par défaut retenu, à confirmer :** la **suspension** (état réversible) plutôt que la
+**résiliation** (état terminal), le CDCF ne tranchant pas explicitement l'issue à ce stade.
+
+Questions pour l'encadrant :
+- L'issue d'une mise en demeure infructueuse est-elle une **suspension** de garantie (le contrat
+  peut reprendre après régularisation) ou une **résiliation** définitive du contrat ?
+- Si les deux existent, à quelle condition passe-t-on de l'une à l'autre (délai supplémentaire,
+  décision manuelle, seuil de montant) ? Faut-il une étape `suspendu → resilie` automatique après
+  un nouveau délai ?
+- Le délai réglementaire entre relance amiable, mise en demeure et suspension est-il fixé par la
+  compagnie / la réglementation ? (Actuellement paramétré par variable d'environnement.)
+
+**À faire :** ajuster la dernière transition de `PROCHAINE_ETAPE` (`app/recouvrement.py`) si la
+règle diffère — le reste du mécanisme (étapes, délai, historique, échéancier) est indépendant de
+ce choix.
+
+_Origine : extension du module Recouvrement (RF-RECOUV-02 à 05), lot 4._

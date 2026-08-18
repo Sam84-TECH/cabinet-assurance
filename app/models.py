@@ -107,6 +107,13 @@ class TypeRelance(str, PyEnum):
     mise_en_demeure = "mise_en_demeure"
 
 
+class StatutVersementEcheancier(str, PyEnum):
+    """Statut d'un versement d'un échéancier de recouvrement négocié (RF-RECOUV-04)."""
+    prevu = "prevu"
+    regle = "regle"
+    manque = "manque"
+
+
 class TypeDocument(str, PyEnum):
     quittance = "quittance"
     attestation = "attestation"
@@ -507,9 +514,15 @@ class DossierRecouvrement(Base):
         PgEnum(StatutDossierRecouv, name="statut_dossier_recouv"), default=StatutDossierRecouv.ouvert
     )
     date_ouverture: Mapped[date] = mapped_column(Date, server_default=func.current_date())
+    # Date d'entrée dans l'étape courante (RF-RECOUV-02) : base du calcul du délai avant
+    # progression automatique vers l'étape suivante. Posée à chaque changement d'étape.
+    date_derniere_etape: Mapped[date] = mapped_column(Date, server_default=func.current_date())
     date_cloture: Mapped[date | None] = mapped_column(Date)
 
     relances: Mapped[list["Relance"]] = relationship(back_populates="dossier")
+    evenements: Mapped[list["EvenementRecouvrement"]] = relationship(
+        back_populates="dossier", order_by="EvenementRecouvrement.date_evenement")
+    echeancier: Mapped["EcheancierRecouvrement | None"] = relationship(back_populates="dossier", uselist=False)
 
 
 class Relance(Base):
@@ -523,6 +536,62 @@ class Relance(Base):
     resultat: Mapped[str | None] = mapped_column(String(255))
 
     dossier: Mapped["DossierRecouvrement"] = relationship(back_populates="relances")
+
+
+class EvenementRecouvrement(Base):
+    """Historique tracé d'un dossier de recouvrement (RF-RECOUV-05) : un événement par
+    changement d'étape, relance générée, opération sur l'échéancier ou suspension automatique.
+    Consultable depuis le détail du dossier — table dédiée (plus lisible qu'un filtre du
+    journal d'audit générique)."""
+    __tablename__ = "evenement_recouvrement"
+    __table_args__ = (Index("idx_evenement_recouv_dossier", "dossier_recouvrement_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dossier_recouvrement_id: Mapped[int] = mapped_column(ForeignKey("dossier_recouvrement.id"))
+    type_evenement: Mapped[str] = mapped_column(String(40))  # ouverture, progression, relance, echeancier, versement, suspension_auto…
+    ancien_statut: Mapped[str | None] = mapped_column(String(30))
+    nouveau_statut: Mapped[str | None] = mapped_column(String(30))
+    description: Mapped[str | None] = mapped_column(Text)
+    auteur_id: Mapped[int | None] = mapped_column(ForeignKey("utilisateur.id"))
+    date_evenement: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    dossier: Mapped["DossierRecouvrement"] = relationship(back_populates="evenements")
+
+
+class EcheancierRecouvrement(Base):
+    """Échéancier de paiement négocié rattaché à un dossier de recouvrement (RF-RECOUV-04) :
+    un plan de versements étalés. Un seul échéancier actif par dossier."""
+    __tablename__ = "echeancier_recouvrement"
+    __table_args__ = (UniqueConstraint("dossier_recouvrement_id", name="uq_echeancier_dossier"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dossier_recouvrement_id: Mapped[int] = mapped_column(ForeignKey("dossier_recouvrement.id"))
+    montant_total: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    nombre_versements: Mapped[int] = mapped_column()
+    date_creation: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    dossier: Mapped["DossierRecouvrement"] = relationship(back_populates="echeancier")
+    versements: Mapped[list["VersementEcheancier"]] = relationship(
+        back_populates="echeancier", order_by="VersementEcheancier.numero_ordre")
+
+
+class VersementEcheancier(Base):
+    """Un versement prévu d'un échéancier de recouvrement (RF-RECOUV-04) : date prévue,
+    montant, et statut (prévu / réglé / manqué)."""
+    __tablename__ = "versement_echeancier"
+    __table_args__ = (UniqueConstraint("echeancier_id", "numero_ordre"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    echeancier_id: Mapped[int] = mapped_column(ForeignKey("echeancier_recouvrement.id"))
+    numero_ordre: Mapped[int] = mapped_column()
+    date_prevue: Mapped[date] = mapped_column(Date)
+    montant: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    statut: Mapped[StatutVersementEcheancier] = mapped_column(
+        PgEnum(StatutVersementEcheancier, name="statut_versement_echeancier"),
+        default=StatutVersementEcheancier.prevu,
+    )
+
+    echeancier: Mapped["EcheancierRecouvrement"] = relationship(back_populates="versements")
 
 
 # ============================================================
